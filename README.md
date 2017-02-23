@@ -18,8 +18,7 @@ Dependencies
 
 - [matplotlib](http://matplotlib.sourceforge.net)
 
-- [pandas](http://pandas.pydata.org/)
-
+- [inbupgf90](http://nce.ads.uga.edu/wiki/doku.php?id=readme.inbupgf90)
 
 Development
 -----------

@@ -6,43 +6,58 @@
 # + Matings will be based on parent averages, and at-risk matings will be penalized by the economic
 #   value of each recessive.
 
-# Import external libraries
+# Force matplotlib to not use any X-windows backend.
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import plot, hist
 import ast
 import copy
 import datetime
 import itertools
 import math
-import matplotlib
-# Force matplotlib to not use any X-windows backend.
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import plot, hist
 import numpy as np
 import numpy.ma as ma
 import os
 import random
 from scipy.stats import bernoulli
 import subprocess
+import sys
 import time
-
-# Setup the simulation
-#    base_bulls:            Number of bulls in the base population (founders)
-#    base_cows:             Number of cows in the base population (founders)
-#    base_herds:            Number of herds in the population.
-#    force_carriers:        If True, force at least one carrier of each sex.
-#    force_best:            If True, force one carrier of each breed to have a
-#                           TBV that is 4 SD above the mean for that sex.
-#    recessives:            Dictionary of recessive alleles in the population.
-#    check_tbv:             If True, plot histograms showing the distribution of
-#                           the sire and dam TBV in the base population.
-#    rng_seed:              An integer used to seed the random number generation. If
-#                           None, a random seed as described in the Python documentation
-#                           is used.
-#    debug                  Flag to activate/deactivate debugging messages.
 
 
 def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, force_best=True,
           recessives=[], check_tbv=False, rng_seed=None, debug=True):
+
+    """Setup the simulation and create the base population.
+
+    :param base_bulls: (optional)Number of bulls in the base population (founders)
+    :type base_bulls: int
+    :param base_cows: (optional) Number of cows in the base population (founders)
+    :type base_cows: int
+    :param base_herds: (optional) Number of herds in the population.
+    :type base_herds: int
+    :param force_carriers: (optional) Boolean. Force at least one carrier of each sex.
+    :type force_carriers: bool
+    :param force_best: (optional) Boolean. Force one carrier of each breed to have a TBV 4 SD above the mean.
+    :type force_best: bool
+    :param recessives: List of recessive alleles in the population.
+    :type recessives: list
+    :param check_tbv: (optional) Boolean. Plot histograms of sire and dam TBV in the base population.
+    :type check_tbv: bool
+    :param rng_seed: (optional) Seed used for the random number generator.
+    :type rng_seed: int
+    :param debug: (optional) Boolean. Activate debugging messages.
+    :type debug: bool
+    :return: Separate lists of cows, bulls, dead cows, dead bulls, and the histogram of TBV.
+    :rtype: list
+"""
+
+#    Usage::
+#        >>> import requests
+#        >>> req = requests.request('GET', 'http://httpbin.org/get')
+#        <Response [200]>
+#    """
 
     # Base population parameters
     generation = 0                  # The simulation starts at generation 0. It's as though we're all C programmers.
@@ -243,21 +258,37 @@ def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, f
 # * We need to mate cows and create their offspring, including genotypes
 # * "Old" cows need to be culled so that the population size is maintained
 # * Minor allele frequencies in the recessives lists need to be updated
-#
-# cows          : A list of live cow records
-# bulls         : A list of live bull records
-# dead_cows     : A list of dead cow records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# recessives    : A Python list of recessives in the population
-# max_matings   : The maximum number of matings permitted for each bull
-# edit_prop     : The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %)
-# edit_type     : The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR
-# debug         : Flag to activate/deactivate debugging messages
 
 
 def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, max_matings=50,
                   edit_prop=[0.0, 0.0], edit_type='C', debug=False):
+
+    """Use random mating to advance the simulation by one generation.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param max_matings: The maximum number of matings permitted for each bull.
+    :type max_matings: int
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Separate lists of cows, bulls, dead cows, and dead bulls.
+    :rtype: list
+    """
+
     if max_matings <= 0:
         print "[random_mating]: max_matings cannot be <= 0! Setting to 50."
         max_matings = 50
@@ -350,22 +381,38 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
 # * We need to mate cows and create their offspring, including genotypes
 # * "Old" cows need to be culled so that the population size is maintained
 # * Minor allele frequencies in the recessives lists need to be updated
-#
-# cows          : A list of live cow records
-# bulls         : A list of live bull records
-# dead_cows     : A list of dead cow records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# recessives    : A Python list of recessives in the population
-# pct           : The proportion of bulls to retain for mating
-# edit_prop     : The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %)
-# edit_type     : The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR
-# debug         : Flag to activate/deactivate debugging messages
 
 
 def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
                   recessives, pct=0.10, edit_prop=[0.0,0.0], edit_type='C',
                   debug=False):
+
+    """Use truncation selection to advance the simulation by one generation.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param pct: The proportion of bulls to retain for mating.
+    :type pct: float
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Separate lists of cows, bulls, dead cows, and dead bulls.
+    :rtype: list
+    """
+
     if debug:
         print '[toppct_mating]: PARMS:\n\tgeneration: %s\n\trecessives; %s\n\tpct: %s\n\tdebug: %s' % \
             (generation, recessives, pct, debug)
@@ -465,6 +512,19 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
 
 
 def get_next_id(cows, bulls, dead_cows, dead_bulls):
+    """Returns the largest animal ID in the population + 1.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :return: The starting ID for the next generation of calves.
+    :rtype: int
+    """
     id_list = []
     for c in cows:
         id_list.append(int(c[0]))
@@ -479,7 +539,7 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
     return next_id
 
 
-# compute_inbreeding() INBUPGF90 to compute coefficients of inbreeding for each animal
+# compute_inbreeding() uses INBUPGF90 to compute coefficients of inbreeding for each animal
 # in the pedigree, and updated animal records to include that information.
 #
 # cows          : A list of live cow records
@@ -492,8 +552,26 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
 
 
 def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix='', debug=False):
+    """Compute coefficients of inbreeding for each animal in the pedigree.
 
-    #
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param prefix: Prefix used for filenames to tell scenarios apart.
+    :type prefix: string
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Separate lists of cows, bulls, dead cows, and dead bulls with updated inbreeding.
+    :rtype: list
+    """
+
     # Now, we're going to need to construct a pedigree that includes matings of all cows in
     # each herd to the bulls randomly assigned to that herd. Bulls are randomly assigned to
     # herds to reflect different sire selection policies. It is faster to calculate the
@@ -597,9 +675,10 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
     # 2 - recursive but with coefficients store in memory, faster with large number of
     #     generations but more memory requirements
     # 3 - method as in Meuwissen & Luo 1992
+    # * Method 3 seems to work quite well, methods 1 and 2 seem to "stall" sometimes, not sure why. *
     if debug:
         print '\t[compute_inbreeding]: Started inbupgf90 to calculate COI at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '1', '--yob', '>', logfile, '2>&1&']
+    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '3', '--yob', '>', logfile, '2>&1&']
     time_waited = 0
     p = subprocess.Popen(callinbupgf90, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     while p.poll() is None:
@@ -644,40 +723,64 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
     for db in dead_bulls: db[10] = inbr[db[0]]
 
     # Clean-up
-    if len(prefix) > 0:
-        os.remove('compute_inbreeding_%s_%s.txt' % (prefix, generation))
-        os.remove('compute_inbreeding_%s_%s.txt.errors' % (prefix, generation))
-        os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (prefix, generation))
-    else:
-        os.remove('compute_inbreeding_%s.txt' % generation)
-        os.remove('compute_inbreeding_%s.txt.errors' % generation)
-        os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
+    try:
+        if len(prefix) > 0:
+            os.remove('compute_inbreeding_%s_%s.txt' % (prefix, generation))
+            os.remove('compute_inbreeding_%s_%s.txt.errors' % (prefix, generation))
+            os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (prefix, generation))
+            os.remove('compute_inbreeding_%s_%s.txt.solinb' % (prefix, generation))
+        else:
+            os.remove('compute_inbreeding_%s.txt' % generation)
+            os.remove('compute_inbreeding_%s.txt.errors' % generation)
+            os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
+            os.remove('compute_inbreeding_%s.txt.solinb' % generation)
+    except OSError:
+        print '\t[compute_inbreeding]: Unable to delete all inbreeding files.'
 
     # Send everything back to the calling routine
     return cows, bulls, dead_cows, dead_bulls
 
+
 # This routine uses an approach similar to that of Pryce et al. (2012) allocate matings of bulls
 # to cows. Parent averages are discounted for any increase in inbreeding in the progeny, and
 # they are further discounted to account for the effect of recessives on lifetime income.
-#
-# cows          : A list of live cow records
-# bulls         : A list of live bull records
-# dead_cows     : A list of dead cow records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# recessives    : A Python list of recessives in the population
-# max_matings   : The maximum number of matings permitted for each bull
-# base_herds    : Number of herds in the population.
-# debug         : Flag to activate/deactivate debugging messages
-# penalty       : If True, adjust PA for recessives, else adjust only for inbreeding
-# service_bulls : Number of herd bulls to use in each herd each generation
-# edit_prop     : The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %)
-# edit_type     : The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR
 
 
 def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
                  recessives, max_matings=500, base_herds=100, debug=False,
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C'):
+
+    """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param max_matings: The maximum number of matings permitted for each bull
+    :type max_matings: int
+    :param base_herds: Number of herds in the population.
+    :type base_herds: int
+    :param debug: Activate/deactivate debugging messages.
+    :type debug: True or False
+    :param penalty: Boolean. Adjust PA for recessives, or adjust only for inbreeding
+    :type penalty: bool
+    :param service_bulls: Number of herd bulls to use in each herd each generation.
+    :type service_bulls: int
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :return: Separate lists of cows, bulls, dead cows, and dead bulls.
+    :rtype: list
+    """
 
     if debug:
         print '\t[pryce_mating]: Parameters:\n\t\tgeneration: %s\n\t\tmax_matings: %s\n\t\tbase_herds: ' \
@@ -866,7 +969,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
     # 3 - method as in Meuwissen & Luo 1992
     if debug:
         print '\t[pryce_mating]: Started inbupgf90 to calculate COI at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '1', '--yob', '>', logfile, '2>&1&']
+    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '3', '--yob', '>', logfile, '2>&1&']
     time_waited = 0
     p = subprocess.Popen(callinbupgf90, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     while p.poll() is None:
@@ -1096,14 +1199,19 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
         print '\t\t[pryce_mating]: %s animals in final dead bull list' % len(dead_bulls)
 
     # Clean-up
-    if penalty:
-        os.remove('compute_inbreeding_r_%s.txt' % generation)
-        os.remove('compute_inbreeding_r_%s.txt.errors' % generation)
-        os.remove('compute_inbreeding_r_%s.txt.inbavgs' % generation)
-    else:
-        os.remove('compute_inbreeding_%s.txt' % generation)
-        os.remove('compute_inbreeding_%s.txt.errors' % generation)
-        os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
+    try:
+        if penalty is True:
+            os.remove('pedigree_pryce_r_%s.txt' % generation)
+            os.remove('pedigree_pryce_r_%s.txt.errors' % generation)
+            os.remove('pedigree_pryce_r_%s.txt.inbavgs' % generation)
+            os.remove('pedigree_pryce_r_%s.txt.solinb' % generation)
+        else:
+            os.remove('pedigree_pryce_%s.txt' % generation)
+            os.remove('pedigree_pryce_%s.txt.errors' % generation)
+            os.remove('pedigree_pryce_%s.txt.inbavgs' % generation)
+            os.remove('pedigree_pryce_%s.txt.solinb' % generation)
+    except OSError:
+        print '\t[pryce_mating]: Unable to clean up all inbreeding files!'
 
     return cows, bulls, dead_cows, dead_bulls
 
@@ -1120,6 +1228,24 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
 
 
 def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
+    """Create and return a new calf record.
+
+    :param sire: The father of the new animal.
+    :type sire: int
+    :param dam: The mother of the new animal.
+    :type dam: int
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param calf_id: ID of the calf to create.
+    :type calf_id: int
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: New animal record.
+    :rtype: list
+    """
+
     # Is it a bull or a heifer?
     if bernoulli.rvs(0.50):
         sex = 'M'
@@ -1216,15 +1342,30 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
 # This routine performs gene editing, which consists of setting all '1' alleles
 # to '0' alleles for the genes to be edited. The process can be unsuccessful if
 # edit_fail > 0.
-#
-# animals       : A list of live animal records
-# recessives    : A Python list of recessives in the population
-# edit_prop    : Proportion of animals to edit based on TBV
-# edit_type     : The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR
-# debug         : Flag to activate/deactivate debugging messages
 
 
 def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edit_type='C', debug=False):
+
+    """Edit genes by setting all '1' alleles to '0' alleles for the genes to be edited.
+
+    :param animals: A list of live cow records.
+    :type animals: list
+    :param dead_animals: A list of dead cow records.
+    :type dead_animals: list
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Lists of live and dead animals.
+    :rtype: list
+    """
+
     if debug:
         print '\t[edit_genes]: animals in list: %s' % len(animals)
         print '\t[edit_genes]: Parameters = '
@@ -1273,63 +1414,116 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
     #     6. Sort the list on animal ID in ascending order
     #     7. Return the list
     #
-    # 0. Sort the animals on TBV
-    animals.sort(key=lambda x: x[9], reverse=True)
     n_edit = int(round(len(animals) * edit_prop, 1))
     if n_edit < 1:
         n_edit = 0
         print '\t[edit_genes]: Zero of %s animals were edited with edit_prop = %s and edit_type = %s.' %\
               (len(animals), edit_prop, edit_type)
+
+    # 07/01/2016: What a mess. Note that in the original code (copied below) the ET success check was done after each
+    # recessive was edited, which is obviously incorrect. It's an artifact of that code being written to loop over
+    # recessives, rather than over animals. It is the embryo (animal) that is the ultimate "unit" here since the
+    # embryo lives or dies. So, I had to rewrite the loops to loop over recessives WITHIN animals, rather than the
+    # other way around. Happy Canada Day!
+
     # If we have animals to edit, check and see if we have recessives to edit.
     if n_edit > 0:
-        # For each recessive:
-        for r in range(len(recessives)):
-            # 1. Select the top edit_prop proportion of animals.
-            for animal in range(n_edit):
+        # 0. Sort the animals on TBV
+        animals.sort(key=lambda x: x[9], reverse=True)
+        # 1. Select the top edit_prop proportion of animals.
+        for animal in range(n_edit):
+            # For each recessive:
+            for r in range(len(recessives)):
                 # 2. Do the edit for Aa and aa genotypes, where
                 #    1 is an AA, 0 is an Aa, and a -1 is aa.
                 if animals[animal][-1][r] in [0, -1]:
                     # 3. Check to see if the edit succeeded.
                     # 3a. First, was the embryo successfully edited?
                     if random.uniform(0, 1) >= fail_rate[edit_type]:
-                        # 3b. Was the edited embryo successfully carried to term?
-                        if random.uniform(0, 1) >= death_rate[edit_type]:
-                            # 4. Update the animal's genotype
-                            animals[animal][-1][r] = 1
-                            # 5. Update the edit_status list
-                            animals[animal][11][r] = 1
-                        # If the embryo died then we need to update the cause and time of death,
-                        # and move it to the dead animals list.
-                        else:
-                            animals[animal][6] = 'D'                # The animal is dead
-                            animals[animal][7] = 'G'                # Because of a gene editing
-                            animals[animal][8] = generation         # In the current generation
-                            dead_animals.append(animals[animal])    # Add it to the dead animals list
-                            # Now we have to remove the dead animals from the live animals list
-                            animals[:] = [a for a in animals if a[6] == 'A']
-                    # If the editing failed but the embryo failed then we're back where we
-                    # started, but we don't have to do anything new.
+                        # 4. Update the animal's genotype
+                        animals[animal][-1][r] = 1
+                        # 5. Update the edit_status list
+                        animals[animal][11][r] = 1
+                    # If the edit failed then we don't change anything for that locus in the embryo.
                     else:
                         pass
+            # 3b. Was the edited embryo successfully carried to term?
+            if random.uniform(0, 1) >= death_rate[edit_type]:
+                pass
+            # 3b. If the embryo died then we need to update the cause and time of death,
+            #     and move it to the dead animals list.
+            else:
+                animals[animal][6] = 'D'                # The animal is dead
+                animals[animal][7] = 'G'                # Because of gene editing
+                animals[animal][8] = generation         # In the current generation
+                dead_animals.append(animals[animal])    # Add it to the dead animals list
+        # Now we have to remove the dead animals from the live animals list
+        animals[:] = [a for a in animals if a[6] == 'A']
         # 6. Sort the list on animal ID in ascending order
         animals.sort(key=lambda x: x[0])
     # 7. Return the list
     return animals, dead_animals
 
+    # # If we have animals to edit, check and see if we have recessives to edit.
+    # if n_edit > 0:
+    #     # For each recessive:
+    #     for r in range(len(recessives)):
+    #         # 1. Select the top edit_prop proportion of animals.
+    #         for animal in range(n_edit):
+    #             # 2. Do the edit for Aa and aa genotypes, where
+    #             #    1 is an AA, 0 is an Aa, and a -1 is aa.
+    #             if animals[animal][-1][r] in [0, -1]:
+    #                 # 3. Check to see if the edit succeeded.
+    #                 # 3a. First, was the embryo successfully edited?
+    #                 if random.uniform(0, 1) >= fail_rate[edit_type]:
+    #                     # 3b. Was the edited embryo successfully carried to term?
+    #                     if random.uniform(0, 1) >= death_rate[edit_type]:
+    #                         # 4. Update the animal's genotype
+    #                         animals[animal][-1][r] = 1
+    #                         # 5. Update the edit_status list
+    #                         animals[animal][11][r] = 1
+    #                     # If the embryo died then we need to update the cause and time of death,
+    #                     # and move it to the dead animals list.
+    #                     else:
+    #                         animals[animal][6] = 'D'                # The animal is dead
+    #                         animals[animal][7] = 'G'                # Because of gene editing
+    #                         animals[animal][8] = generation         # In the current generation
+    #                         dead_animals.append(animals[animal])    # Add it to the dead animals list
+    #                         # Now we have to remove the dead animals from the live animals list
+    #                         animals[:] = [a for a in animals if a[6] == 'A']
+    #                 # If the editing failed but the embryo failed then we're back where we
+    #                 # started, but we don't have to do anything new.
+    #                 else:
+    #                     pass
+    #     # 6. Sort the list on animal ID in ascending order
+    #     animals.sort(key=lambda x: x[0])
+    # # 7. Return the list
+    # return animals, dead_animals
 
 # This routine culls bulls each generation. The rules used are:
 # 1.  Bulls cannot be more than 10 years old
 # 2.  After that, bulls are sorted on PTA and only the top
 #     max_bulls animals are retained.
-#
-# bulls         : A list of live bull records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# max_bulls     : The maximum number of bulls that can be alive at one time
-# debug         : Flag to activate/deactivate debugging messages
 
 
 def cull_bulls(bulls, dead_bulls, generation, max_bulls=250, debug=False):
+
+    """Cull excess and old bulls from the population.
+
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_bulls: A list of records of dead bulls.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param max_bulls: The maximum number of bulls that can be alive at one time.
+    :type max_bulls: int
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Lists of live and dead bulls.
+    :rtype: list
+    """
+
     if debug:
         print '[cull_bulls]: live bulls: %s' % len(bulls)
         print '[cull_bulls]: dead bulls: %s' % len(dead_bulls)
@@ -1380,13 +1574,22 @@ def cull_bulls(bulls, dead_bulls, generation, max_bulls=250, debug=False):
 # Print a table showing how many animals of each age are in the population. Returns a
 # dictionary of results. If the "show" parameter is True then print the table to
 # the console.
-#
-# animals       : A list of live animal records
-# generation    : The current generation in the simulation
-# show          : Flag to activate/deactivate printing of the age distribution
 
 
 def age_distn(animals, generation, show=True):
+
+    """Print a table showing how many animals of each age are in the population.
+
+    :param animals: A list of live animal records.
+    :type animals: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param show: Boolean. Activate/deactivate printing of the age distribution.
+    :type show: bool
+    :return: Lists of live and dead cows.
+    :rtype: dictionary
+    """
+
     ages = {}
     for a in animals:
         age = generation - a[3]
@@ -1406,16 +1609,28 @@ def age_distn(animals, generation, show=True):
 # 1.  Cows cannot be more than 5 years old
 # 2.  There is an [optional] involuntary cull at a user-specified rate 
 # 3.  After that, cows are culled at random to get down to the maximum herd size
-#
-# cows          : A list of live cow records
-# dead_cows     : A list of dead cow records
-# generation    : The current generation in the simulation
-# max_cows      : The maximum number of cows that can be alive at one time
-# culling_rate  : The proportion of cows culled involuntarily each generation
-# debug         : Flag to activate/deactivate debugging messages
 
 
 def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=False):
+
+    """Cull excess and old cows from the population.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param dead_cows: A list of records of dead cows.
+    :type dead_cows: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param max_cows: The maximum number of cows that can be alive at one time.
+    :type max_cows: int
+    :param culling_rate: The proportion of cows culled involuntarily each generation.
+    :type culling_rate: float
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :return: Lists of live and dead cows.
+    :rtype: list
+    """
+
     if debug:
         print '[cull_cows]: live cows: %s' % len(cows)
         print '[cull_cows]: dead cows: %s' % len(dead_cows)
@@ -1484,11 +1699,18 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
 #    sample mean
 #    min, max, and count
 #    sample variance and standard deviation
-#
-# animals          : A list of animal records
 
 
 def animal_summary(animals):
+
+    """Compute simple summary statistics of TBV for the list of animals passed in.
+
+    :param animals: A list of live animal records.
+    :type animals: list
+    :return: Sample size, minimum, maximum, mean, variance, and tandard deviation.
+    :rtype: float
+    """
+
     total = 0.
     count = 0.
     tmin = float('inf')
@@ -1528,6 +1750,25 @@ def animal_summary(animals):
 
 
 def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=False):
+
+    """Determine minor allele freuencies for each recessive by allele counting.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param freq_hist: Minor allele frequencies for each generation.
+    :type freq_hist: dictionary
+    :param show_recessives: Boolean. Print summary information for each recessive.
+    :type show_recessives: bool
+    :return: List of recessives with updated frequencies and dictionary of frequencies.
+    :rtype: list and dictionary
+    """
+
     minor_allele_counts = []
     for r in recessives:
         minor_allele_counts.append(0)
@@ -1595,17 +1836,28 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
 
 # We're going to go ahead and write files containing various pieces
 # of information from the simulation.
-#
-# cows          : A list of live cow records
-# bulls         : A list of live bull records
-# dead_cows     : A list of dead cow records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# filetag       : String added to a filename to better describe what analysis
-#                 a file is associated with
 
 
 def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=''):
+
+    """Write output files, including animal records, simulation parameters, and recessive information.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param filetag: Added to file names to describe the analysis a file is associated with.
+    :type filetag: string
+    :return: Nothing is returned from this function.
+    :rtype: None
+    """
+
     # First, write the animal history files.
     cowfile = 'cows_history%s_%s.txt' % (filetag, generation)
     deadcowfile = 'dead_cows_history%s_%s.txt' % (filetag, generation)
@@ -1669,36 +1921,55 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
 
 
 # Main loop for individual simulation scenarios.
-#
-# scenario: the mating strategy to use in the current scenario
-#           ( random | toppct | pryce )
-# gens              : number of generations to run the simulation
-# percent           : percent of bulls to use as sires in the toppct
-#                     scenario
-# base_bulls        : The number of bulls in the base population
-# base_cows         : The number of cows in the base population
-# service_bulls     : Number of herd bulls to use in each herd each generation.
-# base_herds        : Number of herds in the population.
-# max_bulls         : The maximum number of bulls that can be alive at one time
-# max_cows          : The maximum number of cows that can be alive at one time
-# debug             : Flag to activate/deactivate debugging messages
-# filetag           : String added to a filename to better describe what analysis
-#                     a file is associated with
-# recessives        : A Python list of recessives in the population
-# max_matings       : The maximum number of matings permitted for each bull
-# show_recessives   : When True, print summary information for each recessive
-# history_freq      : When 'end', save only the files from final generation, otherwise save every generation.
-# edit_prop         : The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %)
-# edit_type         : The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR,
-#                     'P' = perfect (no failures/only successes).
+
 
 def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_cows=2500,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
                  filetag='', recessives=[], max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C'):
 
-    if rng_seed:
-        random.seed(rng_seed)
+    """Main loop for individual simulation scenarios.
+
+    :param scenario: The mating strategy to use in the current scenario ('random'|'toppct'|'pryce').
+    :type scenario: string
+    :param gens: Total number of generations to run the simulation.
+    :type gens: int
+    :param percent: Percent of bulls to use as sires in the toppct scenario.
+    :type percent: float
+    :base_bulls: The number of bulls in the base population.
+    :type base_bulls: int
+    :param base_cows: The number of cows in the base population.
+    :type base_cows: int
+    :param service_bulls: The number of herd bulls to use in each herd each generation.
+    :type service_bulls: int
+    :param base_herds: The number of herds in the population.
+    :type base_herds: int
+    :param max_bulls: The maximum number of bulls that can be alive at one time.
+    :type max_bulls: int
+    :param max_cows: The maximum number of cows that can be alive at one time.
+    :type max_cows: int
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :param filetag: Added to file names to describe the analysis a file is associated with.
+    :type filetag: string
+    :param recessives: Dictionary of recessive alleles in the population.
+    :type recessives: list
+    :param max_matings: The maximum number of matings permitted for each bull.
+    :type max_matings: int
+    :param show_recessives: Boolean. Print summary information for each recessive.
+    :type show_recessives: bool
+    :param history_freq: When 'end', save only files from final generation, else save every generation.
+    :type history_freq: string
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :return: Nothing is returned from this function.
+    :rtype: None
+    """
+
+    # Initialize the PRNG.
+    random.seed(rng_seed)
 
     # This is the initial setup
     print '[run_scenario]: Setting-up the simulation at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1751,7 +2022,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                dead_bulls,
                                                                generation,
                                                                recessives,
-                                                               pct=pct,
+                                                               pct=percent,
                                                                edit_prop=edit_prop,
                                                                edit_type=edit_type,
                                                                debug=debug)
@@ -1957,11 +2228,13 @@ if __name__ == '__main__':
     generations =   20       # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
     debug =         True     # Activate (True) or deactivate (False) debugging messages
-    history_freq =  'all'    # Only write history files at the end of the simulation, not every generation.
+    history_freq =  'end'    # Only write history files at the end of the simulation, not every generation.
+    rng_seed = long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
+                                		# simulation if we need/want to.
 
     # Parameters related to gene editing. Embryonic death rates and editing failure rates based on the
     # editing technology used are hard-coded in the edit_genes() function.
-    edit_prop =     [0.1, 0.01]    # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
+    edit_prop =     [0.01, 0.00]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
                                    # 'C' = CRISPR, 'P' = perfect (no failures/only successes).
@@ -1972,46 +2245,98 @@ if __name__ == '__main__':
     # is lethal (0) or non-lethal (0). The fourth value is a label that is not used for any calculations. The fifth
     # value is  a flag which indicates a gene should be left in its original state (0) or edited (1).
     #
-    # default_recessives = [
-    #     [0.0071, -20, 0, 'Polled', 0],
-    # ]
+    default_recessives = [
+        [0.0276, 150, 1, 'Brachyspina', 1],
+        [0.0192,  40, 1, 'HH1', 1],
+        [0.0166,  40, 1, 'HH2', 1],
+        [0.0295,  40, 1, 'HH3', 1],
+        [0.0037,  40, 1, 'HH4', 1],
+        [0.0222,  40, 1, 'HH5', 1],
+        [0.0025, 150, 1, 'BLAD', 1],
+        [0.0137,  70, 1, 'CVM', 1],
+        [0.0001,  40, 1, 'DUMPS', 1],
+        [0.0007, 150, 1, 'Mulefoot', 1],
+        [0.9929,  40, 0, 'Horned', 1],
+        [0.0542, -20, 0, 'Red', 0],
+    ]
+
     # Alternatively, you can read the recessive information from a file.
-    with open('../recessives.config','r') as inf:
-        default_recessives = ast.literal_eval(inf.read())
+    #with open('../recessives.config','r') as inf:
+    #    default_recessives = ast.literal_eval(inf.read())
 
-    # First, run the random mating scenario
-    print '=' * 80
-    recessives = copy.deepcopy(default_recessives)
-    run_scenario(scenario='random', base_bulls=base_bulls, base_cows=base_cows,
-                 service_bulls=service_bulls, max_bulls=max_bulls, max_cows=max_cows,
-                 filetag='_ran_default', recessives=recessives, rng_seed=None,
-                 history_freq=history_freq, edit_prop=edit_prop, edit_type=edit_type)
-
-    # Now run truncation selection, just to introduce some genetic trend.
-    print '=' * 80
-    recessives = copy.deepcopy(default_recessives)
-    run_scenario(scenario='toppct', percent=percent, base_bulls=base_bulls,
-                 base_cows=base_cows, service_bulls=service_bulls, max_bulls=max_bulls,
-                 max_cows=max_cows, filetag='_toppct_default', recessives=recessives,
-                 rng_seed=None, history_freq=history_freq, edit_prop=edit_prop,
-                 edit_type=edit_type)
-
-    # This is the real heart of the analysis, applying Pryce's method, which accounts for
-    # inbreeding but NOT for recessives.
-    print '=' * 80
-    recessives = copy.deepcopy(default_recessives)
-    run_scenario(scenario='pryce', percent=percent, base_bulls=base_bulls, base_cows=base_cows,
-                 base_herds=base_herds, service_bulls=service_bulls, max_bulls=max_bulls, max_cows=max_cows,
-                 debug=debug, filetag='_pryce_default', recessives=recessives, gens=generations,
-                 max_matings=max_matings, rng_seed=None, history_freq=history_freq, edit_prop=edit_prop,
-                 edit_type=edit_type)
+    # # First, run the random mating scenario
+    # print '=' * 80
+    # recessives = copy.deepcopy(default_recessives)
+    # run_scenario(scenario='random',
+    #              base_bulls=base_bulls,
+    #              base_cows=base_cows,
+    #              service_bulls=service_bulls,
+    #              max_bulls=max_bulls,
+    #              max_cows=max_cows,
+    #              filetag='_horned_p',
+    #              recessives=recessives,
+    #              rng_seed=rng_seed,
+    #              history_freq=history_freq,
+    #              edit_prop=edit_prop,
+    #              edit_type=edit_type)
+    #
+    # # Now run truncation selection, just to introduce some genetic trend.
+    # print '=' * 80
+    # recessives = copy.deepcopy(default_recessives)
+    # run_scenario(scenario='toppct',
+    #              percent=percent,
+    #              base_bulls=base_bulls,
+    #              base_cows=base_cows,
+    #              service_bulls=service_bulls,
+    #              max_bulls=max_bulls,
+    #              max_cows=max_cows,
+    #              filetag='_horned_p',
+    #              recessives=recessives,
+    #              rng_seed=rng_seed,
+    #              history_freq=history_freq,
+    #              edit_prop=edit_prop,
+    #              edit_type=edit_type)
+    #
+    # # This is the real heart of the analysis, applying Pryce's method, which accounts for
+    # # inbreeding but NOT for recessives.
+    # print '=' * 80
+    # recessives = copy.deepcopy(default_recessives)
+    # run_scenario(scenario='pryce',
+    #              percent=percent,
+    #              base_bulls=base_bulls,
+    #              base_cows=base_cows,
+    #              base_herds=base_herds,
+    #              service_bulls=service_bulls,
+    #              max_bulls=max_bulls,
+    #              max_cows=max_cows,
+    #              debug=debug,
+    #              filetag='_horned_p',
+    #              recessives=recessives,
+    #              gens=generations,
+    #              max_matings=max_matings,
+    #              rng_seed=rng_seed,
+    #              history_freq=history_freq,
+    #              edit_prop=edit_prop,
+    #              edit_type=edit_type)
 
     # The 'pryce_r' scenario applies Pryce's method, which accounts for inbreeding
     # and also for recessive effects.
     print '=' * 80
     recessives = copy.deepcopy(default_recessives)
-    run_scenario(scenario='pryce_r', percent=percent, base_bulls=base_bulls, base_cows=base_cows,
-                 base_herds=base_herds, service_bulls=service_bulls, max_bulls=max_bulls, max_cows=max_cows,
-                 debug=debug, filetag='_pryce_r_default', recessives=recessives, gens=generations,
-                 max_matings=max_matings, rng_seed=None, history_freq=history_freq, edit_prop=edit_prop,
+    run_scenario(scenario='pryce_r',
+                 percent=percent,
+                 base_bulls=base_bulls,
+                 base_cows=base_cows,
+                 base_herds=base_herds,
+                 service_bulls=service_bulls,
+                 max_bulls=max_bulls,
+                 max_cows=max_cows,
+                 debug=debug,
+                 filetag='_crispr',
+                 recessives=recessives,
+                 gens=generations,
+                 max_matings=max_matings,
+                 rng_seed=rng_seed,
+                 history_freq=history_freq,
+                 edit_prop=edit_prop,
                  edit_type=edit_type)
