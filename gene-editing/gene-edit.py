@@ -24,6 +24,7 @@ from scipy.stats import bernoulli
 import subprocess
 import sys
 import time
+import type
 
 
 def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, force_best=True,
@@ -261,7 +262,8 @@ def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, f
 
 
 def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, max_matings=50,
-                  edit_prop=[0.0, 0.0], edit_type='C', debug=False):
+                  edit_prop=[0.0, 0.0], edit_type='C', edit_trials=1, embryo_trials=1,
+                  debug=False):
 
     """Use random mating to advance the simulation by one generation.
 
@@ -344,10 +346,12 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             new_bulls, dead_bulls = edit_genes(new_bulls, dead_bulls, recessives, generation,
-                                               edit_prop[0], edit_type, debug)
+                                               edit_prop[0], edit_type, edit_trials,
+                                               embryo_trials, debug)
         if edit_prop[1] > 0.0:
             new_cows, dead_cows = edit_genes(new_cows, dead_cows, recessives, generation,
-                                             edit_prop[1], edit_type, debug)
+                                             edit_prop[1], edit_type, edit_trials,
+                                             embryo_trials, debug)
     # End of gene editing section
 
     for nc in new_cows:
@@ -385,7 +389,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
 
 def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
                   recessives, pct=0.10, edit_prop=[0.0,0.0], edit_type='C',
-                  debug=False):
+                  edit_trials=1, embryo_trials=1, debug=False):
 
     """Use truncation selection to advance the simulation by one generation.
 
@@ -479,10 +483,12 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             new_bulls, dead_bulls = edit_genes(new_bulls, dead_bulls, recessives, generation,
-                                               edit_prop[0], edit_type, debug)
+                                               edit_prop[0], edit_type, edit_trials,
+                                               embryo_trials, debug)
         if edit_prop[1] > 0.0:
             new_cows, dead_cows = edit_genes(new_cows, dead_cows, recessives, generation,
-                                             edit_prop[1], edit_type, debug)
+                                             edit_prop[1], edit_type, edit_trials,
+                                             embryo_trials, debug)
     # End of gene editing section
 
     for nc in new_cows:
@@ -748,7 +754,8 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
 
 def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
                  recessives, max_matings=500, base_herds=100, debug=False,
-                 penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C'):
+                 penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
+                 edit_trials=1, embryo_trials=1):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -778,6 +785,10 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
     :type edit_prop: list
     :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
     :type edit_type: char
+    :param edit_trials: The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    :type edit_trials: int
+    :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
+    :type embryo_trials: int
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1175,10 +1186,12 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             new_bulls, dead_bulls = edit_genes(new_bulls, dead_bulls, recessives, generation,
-                                               edit_prop[0], edit_type, debug)
+                                               edit_prop[0], edit_type, edit_trials,
+                                               embryo_trials, debug)
         if edit_prop[1] > 0.0:
             new_cows, dead_cows = edit_genes(new_cows, dead_cows, recessives, generation,
-                                             edit_prop[1], edit_type, debug)
+                                             edit_prop[1], edit_type, edit_trials,
+                                             embryo_trials, debug)
     # End of gene editing section
 
     for nc in new_cows:
@@ -1344,7 +1357,8 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
 # edit_fail > 0.
 
 
-def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edit_type='C', debug=False):
+def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edit_type='C',
+               edit_trials=1, embryo_trials=1, debug=False):
 
     """Edit genes by setting all '1' alleles to '0' alleles for the genes to be edited.
 
@@ -1360,6 +1374,10 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
     :type edit_prop: list
     :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
     :type edit_type: char
+    :param edit_trials: The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    :type edit_trials: int
+    :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
+    :type embryo_trials: int
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Lists of live and dead animals.
@@ -1401,6 +1419,18 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
               'T (transcription activator-like effector nuclease), C (clustered regularly ' \
               'interspaced short palindromic repeat), or P (perfect, never fails). Using C instead.' % edit_type
         edit_type = 'C'
+    if not isinstance(edit_trials, types.IntType):
+        print '\t[edit_genes]: edit_trials has a value of %s, but it should be an integer. Using 1 instead.'
+        edit_trials = 1
+    if edit_trials == 0:
+        print '\t[edit_genes]: edit_trials cannot be 0. Using 1 instead.'
+        edit_trials = 1
+    if not isinstance(embryo_trials, types.IntType):
+        print '\t[edit_genes]: embryo_trials has a value of %s, but it should be an integer. Using 1 instead.'
+        embryo_trials = 1
+    if embryo_trials == 0:
+        print '\t[edit_genes]: embryo_trials cannot be 0. Using 1 instead.'
+        embryo_trials = 1
 
     # Do the actual gene editing. Here's how that works.
     #     0. Sort the animals on TBV
@@ -1439,14 +1469,35 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
                 if animals[animal][-1][r] in [0, -1]:
                     # 3. Check to see if the edit succeeded.
                     # 3a. First, was the embryo successfully edited?
-                    if random.uniform(0, 1) >= fail_rate[edit_type]:
-                        # 4. Update the animal's genotype
-                        animals[animal][-1][r] = 1
-                        # 5. Update the edit_status list
-                        animals[animal][11][r] = 1
-                    # If the edit failed then we don't change anything for that locus in the embryo.
-                    else:
-                        pass
+                    # 3a. (i) if edit_trials > 0 then only a fixed number of trials
+                    #         will be carried out. If there is no success before the
+                    #         final trial then the editing process fails.
+                    if edit_trials > 0:
+                        for t in xrange(edit_trials):
+                            if random.uniform(0, 1) >= fail_rate[edit_type]:
+                                # 4. Update the animal's genotype
+                                animals[animal][-1][r] = 1
+                                # 5. Update the edit_status list
+                                #animals[animal][11][r] = 1
+                                animals[animal][11][r] = t + 1
+                                break
+                            # If the edit failed then we don't change anything for that locus in the embryo.
+                            else:
+                                pass
+                    # 3a. (ii) if edit_trials < 0 then then the editing process will be
+                    #          repeated until a success occurs.
+                    if edit_trials < 0:
+                        trial_count = 0
+                        while True:
+                            if random.uniform(0, 1) >= fail_rate[edit_type]:
+                                # 4. Update the animal's genotype
+                                animals[animal][-1][r] = 1
+                                # 5. Update the edit_status list
+                                animals[animal][11][r] = trial_count + 1
+                                break
+                            # If the edit failed then we don't change anything for that locus in the embryo.
+                            else:
+                                trial_count += 1
             # 3b. Was the edited embryo successfully carried to term?
             if random.uniform(0, 1) >= death_rate[edit_type]:
                 pass
@@ -1926,7 +1977,7 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
 def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_cows=2500,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
                  filetag='', recessives=[], max_matings=500, rng_seed=None, show_recessives=False,
-                 history_freq='end', edit_prop=[0.0,0.0], edit_type='C'):
+                 history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1):
 
     """Main loop for individual simulation scenarios.
 
@@ -1964,6 +2015,10 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
     :type edit_prop: list
     :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
     :type edit_type: char
+    :param edit_trials: The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    :type edit_trials: int
+    :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
+    :type embryo_trials: int
     :return: Nothing is returned from this function.
     :rtype: None
     """
@@ -2008,6 +2063,8 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                max_matings=max_matings,
                                                                edit_prop=edit_prop,
                                                                edit_type=edit_type,
+                                                               edit_trials=edit_trials,
+                                                               embryo_trials=embryo_trials,
                                                                debug=debug)
 
         # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
@@ -2025,6 +2082,8 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                pct=percent,
                                                                edit_prop=edit_prop,
                                                                edit_type=edit_type,
+                                                               edit_trials=edit_trials,
+                                                               embryo_trials=embryo_trials,
                                                                debug=debug)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
@@ -2047,7 +2106,9 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                               penalty=False,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
-                                                              edit_type=edit_type)
+                                                              edit_type=edit_type,
+                                                              edit_trials=edit_trials,
+                                                              embryo_trials=embryo_trials)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2070,7 +2131,9 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                               penalty=True,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
-                                                              edit_type=edit_type)
+                                                              edit_type=edit_type,
+                                                              edit_trials=edit_trials,
+                                                              embryo_trials=embryo_trials)
 
         # The default scenario is random mating.
         else:
@@ -2165,6 +2228,11 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
     outline = 'edit_prop (bulls)  :\t%s\n' % edit_prop[0]
     ofh.write(outline)
     outline = 'edit_type          :\t%s\n' % edit_type
+    ofh.write(outline)
+    outline = 'edit_trials        :\t%s\n' % edit_trials
+    ofh.write(outline)
+    outline = 'embryo_trials      :\t%s\n' % embryo_trials
+    ofh.write(outline)
     for r in xrange(len(recessives)):
         outline = 'Base MAF %s   :\t%s\n' % (r+1, recessives[r][0])
         ofh.write(outline)
@@ -2230,7 +2298,7 @@ if __name__ == '__main__':
     debug =         True     # Activate (True) or deactivate (False) debugging messages
     history_freq =  'end'    # Only write history files at the end of the simulation, not every generation.
     rng_seed = long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
-                                		# simulation if we need/want to.
+                                                # simulation if we need/want to.
 
     # Parameters related to gene editing. Embryonic death rates and editing failure rates based on the
     # editing technology used are hard-coded in the edit_genes() function.
@@ -2238,6 +2306,8 @@ if __name__ == '__main__':
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
                                    # 'C' = CRISPR, 'P' = perfect (no failures/only successes).
+    edit_trials = 1                # The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    embryo_trials = 1              # The number of attempts to transfer an edited embryo successfully(-1 = repeat until success).
 
     # Recessives are stored in a list of lists. The first value in each list is the minor allele frequency in the base
     # population, and the second number is the economic value of the minor allele. If the economic value is $20, that
