@@ -24,6 +24,7 @@ from scipy.stats import bernoulli
 import subprocess
 import sys
 import time
+import types
 
 def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, force_best=True,
           recessives=[], check_tbv=False, rng_seed=None, debug=True):
