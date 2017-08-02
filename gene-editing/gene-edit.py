@@ -24,8 +24,7 @@ from scipy.stats import bernoulli
 import subprocess
 import sys
 import time
-import type
-
+import types
 
 def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, force_best=True,
           recessives=[], check_tbv=False, rng_seed=None, debug=True):
@@ -763,7 +762,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                  recessives, max_matings=500, base_herds=100, debug=False,
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
-                 edit_trials=1, embryo_trials=1):
+                 edit_trials=1, embryo_trials=1, embryo_inbreeding=False):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -799,6 +798,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     :type edit_trials: int
     :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
     :type embryo_trials: int
+    :param embryo_inbreeding: Write a file of coefficients of inbreeding for all possible bull-by-cow matings.
+    :type embryo_inbreeding: boolean
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1128,8 +1129,6 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
         # Sort bulls on ID in ascending order
         bull_portfolio[h].sort(key=lambda x: x[0])
         cow_id_list = [c[0] for c in cow_portfolio[h]]
-        #new_bulls = []
-        #new_cows = []
         if len(cow_id_list) > ( service_bulls * max_matings ):
             print '\t[pryce_mating]: WARNING! There are %s cows in herd %s, but %s service sires limited to %s matings ' \
                 'cannot breed that many cows! Only the first %s cows in the herd will be bred, the other %s will be ' \
@@ -1158,11 +1157,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                                            generation, debug=debug)
                     calf_id = str(bull_portfolio[h][sorted_bulls[bidx]][0])+'__'+str(c[0])
                     # Assign inbreeding to calf
-                    ##try:
                     calf[10] = inbr[calf_id]
-                    ##except KeyError:
-                    ##    calf[10] = 0.0
-                    #print calf_id, calf
                     if penalty:
                         fpdict[calf_id]['mating'] = 1
                     if calf[4] == 'F': new_cows.append(calf)
@@ -1172,14 +1167,16 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                     break
 
     # Write the F_ij / \sum{P(aa)} information that we've been accumulating to a file for later analysis.
-    if penalty:
+    # Note that these files can be very large, and one is written out for EACH round (generation) of the
+    # simulation!
+    if embryo_inbreeding:
         fpfile = 'fij_paa_pryce_%s.txt' % generation
         fph = open(fpfile, 'w')
         for fpkey in fpdict.keys():
-            fpline = '%s %s %s %s %s %s %s\n' % ( fpkey, fpdict[fpkey]['sire'], fpdict[fpkey]['dam'],
-                                                  fpdict[fpkey]['gen'], fpdict[fpkey]['inbr'],
-                                                  fpdict[fpkey]['paa'], fpdict[fpkey]['mating']
-                                                  )
+            fpline = '%s %s %s %s %s %s %s\n' % (fpkey, fpdict[fpkey]['sire'], fpdict[fpkey]['dam'],
+                                                 fpdict[fpkey]['gen'], fpdict[fpkey]['inbr'],
+                                                 fpdict[fpkey]['paa'], fpdict[fpkey]['mating']
+                                                 )
             fph.write(fpline)
         fph.close()
 
@@ -1294,8 +1291,10 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
     #     9  = true breeding value
     #     10 = coefficient of inbreeding
     #     11 = edit status (have recessives been edited)
-    #     12 = recessive genotypes
-    calf = [calf_id, sire[0], dam[0], generation, sex, dam[5], 'A', '', -1, tbv, 0.0, [], []]
+    #     12 = number of edits required for success
+    #     13 = number of ETs required for success
+    #     14 = recessive genotypes
+    calf = [calf_id, sire[0], dam[0], generation, sex, dam[5], 'A', '', -1, tbv, 0.0, [], [], [], []]
     # Check the bull and cow genotypes to see if the mating is at-risk
     # If it is, then reduce the parent average by the value of the recessive.
     c_gt = dam[-1]
@@ -1360,6 +1359,10 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
         # Update edit status record
         calf[11].append(0)
 
+        # Set edit and embryo counters to 0
+        calf[12].append(0)
+        calf[13].append(0)
+
     return calf
 
 
@@ -1413,10 +1416,10 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
     #     One-step generation of knockout pigs by zygote injection of CRISPR/Cas system.
     #     Cell Research 24:372.
     #
-    # CRISPR death rates are from paragraph 5 of Hai et al. (2014). For ZFN/TALEN death rates
+    # CRISPR ET death rates are from paragraph 5 of Hai et al. (2014). For ZFN/TALEN ET death rates
     # see piglet birth rates from Table 1 in Lillico et al. (2013).
     death_rate = {'Z': 0.92, 'T': 0.88, 'C': 0.79, 'P': 0.0}
-    # CRISPR failure rates are from paragraph 5 of Hai et al. (2014). For ZFN/TALEN failure rates
+    # CRISPR editing failure rates are from paragraph 5 of Hai et al. (2014). For ZFN/TALEN editing failure rates
     # see "Edited (% of born)" from Table 1 in Lillico et al. (2013).
     fail_rate = {'Z': 0.89, 'T': 0.79, 'C': 0.37, 'P': 0.0}
 
@@ -1484,89 +1487,76 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
                     #         will be carried out. If there is no success before the
                     #         final trial then the editing process fails.
                     if edit_trials > 0:
-                        for t in xrange(edit_trials):
-                            if random.uniform(0, 1) >= fail_rate[edit_type]:
+                        outcomes = bernoulli.rvs(1.-fail_rate[edit_type], size=edit_trials)
+                        if outcomes.any():
                                 # 4. Update the animal's genotype
                                 animals[animal][-1][r] = 1
                                 # 5. Update the edit_status list
-                                #animals[animal][11][r] = 1
-                                animals[animal][11][r] = t + 1
+                                animals[animal][11][r] = 1
+                                # 6. Update the animal's edit count with the time of the first successful edit
+                                animals[animal][12][r] = np.min(np.nonzero(outcomes)) + 1
                                 break
-                            # If the edit failed then we don't change anything for that locus in the embryo.
-                            else:
-                                pass
                     # 3a. (ii) if edit_trials < 0 then then the editing process will be
                     #          repeated until a success occurs.
-                    if edit_trials < 0:
-                        trial_count = 0
+                    elif edit_trials < 0:
+                        edit_count = 0
                         while True:
-                            if random.uniform(0, 1) >= fail_rate[edit_type]:
+                            if bernoulli.rvs(1.-fail_rate[edit_type]):
                                 # 4. Update the animal's genotype
                                 animals[animal][-1][r] = 1
                                 # 5. Update the edit_status list
-                                animals[animal][11][r] = trial_count + 1
+                                animals[animal][11][r] = 1
+                                # 6. Update the animal's edit count
+                                animals[animal][12][r] = edit_count + 1
                                 break
                             # If the edit failed then we don't change anything for that locus in the embryo.
                             else:
-                                trial_count += 1
+                                edit_count += 1
+                    #  3a. (iii) edit_trials should never be zero because of the sanity checks, but catch it just in
+                    #            case. You know users are...
+                    else:
+                        print "[edit_genes]: edit_trials should never be 0, skipping editing step!"
             # 3b. Was the edited embryo successfully carried to term?
-            if random.uniform(0, 1) >= death_rate[edit_type]:
-                pass
-            # 3b. If the embryo died then we need to update the cause and time of death,
-            #     and move it to the dead animals list.
+            if embryo_trials > 0:
+                # 3b. (i) If the embryo died then we need to update the cause and time of death,
+                #         and move it to the dead animals list. If edit_trials > 0 then only a fixed number of trials
+                #         will be carried out. If there is no success before the final trial then the editing process
+                #         fails.
+                outcomes = bernoulli.rvs(1. - death_rate[edit_type], size=embryo_trials)
+                if not outcomes.any():
+                    animals[animal][6] = 'D'                # The animal is dead
+                    animals[animal][7] = 'G'                # Because of gene editing
+                    animals[animal][8] = generation         # In the current generation
+                    dead_animals.append(animals[animal])    # Add it to the dead animals list
+                else:
+                    # 6. Update the animal's ET count
+                    for r in range(len(recessives)):
+                        animals[animal][13][r] = np.min(np.nonzero(outcomes)) + 1
+            # 3b. (ii) If the embryo died then we need to update the cause and time of death,
+            #          and move it to the dead animals list. If edit_trials < 0 then then the editing process will
+            #          be repeated until a success occurs. The ET operation never adds a dead embryo to the dead
+            #          animals list, failures just increment the number-of-attempts counter.
+            elif embryo_trials < 0:
+                embryo_count = 0
+                while True:
+                    if bernoulli.rvs(1. - death_rate[edit_type]):
+                        # 6. Update the animal's ET count
+                        for r in range(len(recessives)):
+                            animals[animal][13][r] = embryo_count + 1
+                        break
+                    else:
+                        embryo_count += 1
+            # 3b. (iii) embryo_trials should never be zero because of the sanity checks, but catch it just in
+            #           case. You know users are...
             else:
-                animals[animal][6] = 'D'                # The animal is dead
-                animals[animal][7] = 'G'                # Because of gene editing
-                animals[animal][8] = generation         # In the current generation
-                dead_animals.append(animals[animal])    # Add it to the dead animals list
-        # Now we have to remove the dead animals from the live animals list
-        animals[:] = [a for a in animals if a[6] == 'A']
-        # 6. Sort the list on animal ID in ascending order
-        animals.sort(key=lambda x: x[0])
+                print "[edit_genes]: embryo_trials should never be 0, skipping ET step!"
+
+            # Now we have to remove the dead animals from the live animals list
+            animals[:] = [a for a in animals if a[6] == 'A']
+            # 6. Sort the list on animal ID in ascending order
+            animals.sort(key=lambda x: x[0])
     # 7. Return the list
     return animals, dead_animals
-
-    # # If we have animals to edit, check and see if we have recessives to edit.
-    # if n_edit > 0:
-    #     # For each recessive:
-    #     for r in range(len(recessives)):
-    #         # 1. Select the top edit_prop proportion of animals.
-    #         for animal in range(n_edit):
-    #             # 2. Do the edit for Aa and aa genotypes, where
-    #             #    1 is an AA, 0 is an Aa, and a -1 is aa.
-    #             if animals[animal][-1][r] in [0, -1]:
-    #                 # 3. Check to see if the edit succeeded.
-    #                 # 3a. First, was the embryo successfully edited?
-    #                 if random.uniform(0, 1) >= fail_rate[edit_type]:
-    #                     # 3b. Was the edited embryo successfully carried to term?
-    #                     if random.uniform(0, 1) >= death_rate[edit_type]:
-    #                         # 4. Update the animal's genotype
-    #                         animals[animal][-1][r] = 1
-    #                         # 5. Update the edit_status list
-    #                         animals[animal][11][r] = 1
-    #                     # If the embryo died then we need to update the cause and time of death,
-    #                     # and move it to the dead animals list.
-    #                     else:
-    #                         animals[animal][6] = 'D'                # The animal is dead
-    #                         animals[animal][7] = 'G'                # Because of gene editing
-    #                         animals[animal][8] = generation         # In the current generation
-    #                         dead_animals.append(animals[animal])    # Add it to the dead animals list
-    #                         # Now we have to remove the dead animals from the live animals list
-    #                         animals[:] = [a for a in animals if a[6] == 'A']
-    #                 # If the editing failed but the embryo failed then we're back where we
-    #                 # started, but we don't have to do anything new.
-    #                 else:
-    #                     pass
-    #     # 6. Sort the list on animal ID in ascending order
-    #     animals.sort(key=lambda x: x[0])
-    # # 7. Return the list
-    # return animals, dead_animals
-
-# This routine culls bulls each generation. The rules used are:
-# 1.  Bulls cannot be more than 10 years old
-# 2.  After that, bulls are sorted on PTA and only the top
-#     max_bulls animals are retained.
-
 
 def cull_bulls(bulls, dead_bulls, generation, max_bulls=250, debug=False):
 
@@ -1926,8 +1916,7 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
     bullfile = 'bulls_history%s_%s.txt' % (filetag, generation)
     deadbullfile = 'dead_bulls_history%s_%s.txt' % (filetag, generation)
     # Column labels
-    # next_id, bull_id, cow_id, generation, sex, 'A', '', -1, tbv, 0.0, []
-    headerline = 'animal\tsire\tdam\tborn\tsex\therd\tstatus\tcause\tdied\tTBV\tinbreeding\tedited\trecessives\n'
+    headerline = 'animal\tsire\tdam\tborn\tsex\therd\tstatus\tcause\tdied\tTBV\tinbreeding\tedited\tn edits\tn ETs\trecessives\n'
     # Cows
     ofh = file(cowfile, 'w')
     ofh.write(headerline)
