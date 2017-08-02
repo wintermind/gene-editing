@@ -261,9 +261,9 @@ def setup(base_bulls=500, base_cows=2500, base_herds=100, force_carriers=True, f
 # * Minor allele frequencies in the recessives lists need to be updated
 
 
-def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, max_matings=50,
-                  edit_prop=[0.0, 0.0], edit_type='C', edit_trials=1, embryo_trials=1,
-                  debug=False):
+def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, recessives,
+                  max_matings=50, edit_prop=[0.0, 0.0], edit_type='C', edit_trials=1,
+                  embryo_trials=1, debug=False):
 
     """Use random mating to advance the simulation by one generation.
 
@@ -277,6 +277,8 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
     :type dead_bulls: list
     :param generation: The current generation in the simulation.
     :type generation: int
+    :param generations: The total number of generations in the simulation.
+    :type generations: int
     :param recessives: A list of recessives in the population.
     :type recessives: list
     :param max_matings: The maximum number of matings permitted for each bull.
@@ -368,7 +370,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
     # Make sure we have current coefficients of inbreeding -- we'll need them for matings in the next generation.
     prefix = 'random'
     cows, bulls, dead_cows, dead_bulls = compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation,
-                                                            prefix, debug)
+                                                            generations, prefix, debug)
 
     return cows, bulls, dead_cows, dead_bulls
 
@@ -387,7 +389,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, recessives, ma
 # * Minor allele frequencies in the recessives lists need to be updated
 
 
-def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
+def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                   recessives, pct=0.10, edit_prop=[0.0,0.0], edit_type='C',
                   edit_trials=1, embryo_trials=1, debug=False):
 
@@ -403,6 +405,8 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
     :type dead_bulls: list
     :param generation: The current generation in the simulation.
     :type generation: int
+    :param generations: The total number of generations in the simulation.
+    :type generations: int
     :param recessives: A list of recessives in the population.
     :type recessives: list
     :param pct: The proportion of bulls to retain for mating.
@@ -508,7 +512,7 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation,
     # Make sure we have current coefficients of inbreeding -- we'll need them for matings in the next generation.
     prefix = 'toppct'
     cows, bulls, dead_cows, dead_bulls = compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation,
-                                                            prefix, debug)
+                                                            generations, prefix, debug)
 
     return cows, bulls, dead_cows, dead_bulls
 
@@ -557,7 +561,8 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
 # debug         : Flag to activate/deactivate debugging messages
 
 
-def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix='', debug=False):
+def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, prefix='',
+                       debug=False):
     """Compute coefficients of inbreeding for each animal in the pedigree.
 
     :param cows: A list of live cow records.
@@ -570,6 +575,8 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
     :type dead_bulls: list
     :param generation: The current generation in the simulation.
     :type generation: int
+    :param generations: The total number of generations in the simulation.
+    :type generations: int
     :param prefix: Prefix used for filenames to tell scenarios apart.
     :type prefix: string
     :param debug: Boolean. Activate/deactivate debugging messages.
@@ -730,16 +737,17 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
 
     # Clean-up
     try:
-        if len(prefix) > 0:
-            os.remove('compute_inbreeding_%s_%s.txt' % (prefix, generation))
-            os.remove('compute_inbreeding_%s_%s.txt.errors' % (prefix, generation))
-            os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (prefix, generation))
-            os.remove('compute_inbreeding_%s_%s.txt.solinb' % (prefix, generation))
-        else:
-            os.remove('compute_inbreeding_%s.txt' % generation)
-            os.remove('compute_inbreeding_%s.txt.errors' % generation)
-            os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
-            os.remove('compute_inbreeding_%s.txt.solinb' % generation)
+        if generation != generations:
+            if len(prefix) > 0:
+                os.remove('compute_inbreeding_%s_%s.txt' % (prefix, generation))
+                os.remove('compute_inbreeding_%s_%s.txt.errors' % (prefix, generation))
+                os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (prefix, generation))
+                os.remove('compute_inbreeding_%s_%s.txt.solinb' % (prefix, generation))
+            else:
+                os.remove('compute_inbreeding_%s.txt' % generation)
+                os.remove('compute_inbreeding_%s.txt.errors' % generation)
+                os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
+                os.remove('compute_inbreeding_%s.txt.solinb' % generation)
     except OSError:
         print '\t[compute_inbreeding]: Unable to delete all inbreeding files.'
 
@@ -752,7 +760,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, prefix=''
 # they are further discounted to account for the effect of recessives on lifetime income.
 
 
-def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
+def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                  recessives, max_matings=500, base_herds=100, debug=False,
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1):
@@ -769,6 +777,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
     :type dead_bulls: list
     :param generation: The current generation in the simulation.
     :type generation: int
+    :param generations: The total number of generations in the simulation.
+    :type generations: int
     :param recessives: A list of recessives in the population.
     :type recessives: list
     :param max_matings: The maximum number of matings permitted for each bull
@@ -1213,16 +1223,17 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation,
 
     # Clean-up
     try:
-        if penalty is True:
-            os.remove('pedigree_pryce_r_%s.txt' % generation)
-            os.remove('pedigree_pryce_r_%s.txt.errors' % generation)
-            os.remove('pedigree_pryce_r_%s.txt.inbavgs' % generation)
-            os.remove('pedigree_pryce_r_%s.txt.solinb' % generation)
-        else:
-            os.remove('pedigree_pryce_%s.txt' % generation)
-            os.remove('pedigree_pryce_%s.txt.errors' % generation)
-            os.remove('pedigree_pryce_%s.txt.inbavgs' % generation)
-            os.remove('pedigree_pryce_%s.txt.solinb' % generation)
+        if generation != generations:
+            if penalty is True:
+                os.remove('pedigree_pryce_r_%s.txt' % generation)
+                os.remove('pedigree_pryce_r_%s.txt.errors' % generation)
+                os.remove('pedigree_pryce_r_%s.txt.inbavgs' % generation)
+                os.remove('pedigree_pryce_r_%s.txt.solinb' % generation)
+            else:
+                os.remove('pedigree_pryce_%s.txt' % generation)
+                os.remove('pedigree_pryce_%s.txt.errors' % generation)
+                os.remove('pedigree_pryce_%s.txt.inbavgs' % generation)
+                os.remove('pedigree_pryce_%s.txt.solinb' % generation)
     except OSError:
         print '\t[pryce_mating]: Unable to clean up all inbreeding files!'
 
@@ -1977,7 +1988,8 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
 def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_cows=2500,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
                  filetag='', recessives=[], max_matings=500, rng_seed=None, show_recessives=False,
-                 history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1):
+                 history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
+                 embryo_trials=1):
 
     """Main loop for individual simulation scenarios.
 
@@ -2059,6 +2071,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                dead_cows,
                                                                dead_bulls,
                                                                generation,
+                                                               generations,
                                                                recessives,
                                                                max_matings=max_matings,
                                                                edit_prop=edit_prop,
@@ -2078,6 +2091,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                dead_cows,
                                                                dead_bulls,
                                                                generation,
+                                                               generations,
                                                                recessives,
                                                                pct=percent,
                                                                edit_prop=edit_prop,
@@ -2099,6 +2113,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                               dead_cows,
                                                               dead_bulls,
                                                               generation,
+                                                              generations,
                                                               recessives,
                                                               max_matings=max_matings,
                                                               base_herds=base_herds,
@@ -2124,6 +2139,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                               dead_cows,
                                                               dead_bulls,
                                                               generation,
+                                                              generations,
                                                               recessives,
                                                               max_matings=max_matings,
                                                               base_herds=base_herds,
@@ -2142,6 +2158,7 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                                dead_cows,
                                                                dead_bulls,
                                                                generation,
+                                                               generations,
                                                                recessives,
                                                                max_matings=max_matings,
                                                                edit_prop=edit_prop,
@@ -2306,7 +2323,7 @@ if __name__ == '__main__':
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
                                    # 'C' = CRISPR, 'P' = perfect (no failures/only successes).
-    edit_trials = 1                # The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    edit_trials =   1              # The number of attempts to edit an embryo successfully (-1 = repeat until success).
     embryo_trials = 1              # The number of attempts to transfer an edited embryo successfully(-1 = repeat until success).
 
     # Recessives are stored in a list of lists. The first value in each list is the minor allele frequency in the base
