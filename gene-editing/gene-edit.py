@@ -1391,21 +1391,20 @@ def polled_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
         # bulls for use in the herd.
         if debug:
             pass
-        ###
-        ###
-        ###
-        mating_bulls = fetch_recessives(bulls, get_recessive, recessives, copies=0, debug=debug)
-        random.shuffle(bulls)                               # Randomly order bulls
-        ###
-        ###
-        ###
-        # In some scenarios, there are only a few. When that happens, 20% can be less than service bulls, so we're
-        # going to use service_bulls as a floor.
-        if int(len(bulls)/5)+1 < service_bulls:
-            herd_bulls = bulls[0:service_bulls]           # Select service_bulls at random
+        # Copies = 4 will select all PP and Pp bulls.
+        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=4)
+        random.shuffle(mating_bulls)                               # Randomly order bulls
+        random.shuffle(bulls)
+        # In some scenarios, there are only a few bulls available. When that happens, 20% can be less than service
+        # bulls, so we're going to use service_bulls as a floor. If there are too few bulls in mating_bulls
+        # add a random selection of non-polled bulls to fill out the list.
+        if len(mating_bulls) < service_bulls:
+            if herd == 0:
+                print '\t[polled_mating]: Fewer polled sires available than needed, using horned sires at random.'
+            herd_bulls = mating_bulls + bulls[0:(service_bulls-len(mating_bulls)+1)]
         else:
-            herd_bulls = bulls[0:int(len(bulls)/5)]       # Select 20% at random
-        herd_bulls.sort(key=lambda x: x[9], reverse=True)   # Sort in descending order on TBV
+            herd_bulls = mating_bulls[0:service_bulls]    # Select 20% at random
+        herd_bulls.sort(key=lambda x: x[9], reverse=True) # Sort in descending order on TBV
         herd_bulls = herd_bulls[0:service_bulls]          # Keep the top "service_bulls" sires for use
         herd_cows = [c for c in cows if c[5] == herd]
         # Now create proxy calves for each cow-bull combination.
@@ -1722,7 +1721,7 @@ def polled_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
 
     return cows, bulls, dead_cows, dead_bulls
 
-def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=True):
+def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=False):
     """Loop through the provided list of animals and create a new list of animals with COPIES
     number of the minor allele.
 
@@ -1785,7 +1784,8 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Tru
             pass
 
     if debug:
-        print '\t[fetch_recessives]: %s animals selected!' % (len(selected_animals))
+        print '\t[fetch_recessives]: %s animals selected for %s copies of recessive %s!' % \
+              ( len(selected_animals), copies, get_recessive )
 
     return selected_animals
 
@@ -2692,6 +2692,27 @@ def run_scenario(scenario='random', gens=20, percent=0.10, base_bulls=500, base_
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials)
 
+        # Mate cows to polled bullswhenever they're available.
+        elif scenario == 'polled':
+            print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            cows, bulls, dead_cows, dead_bulls = polled_mating(cows,
+                                                              bulls,
+                                                              dead_cows,
+                                                              dead_bulls,
+                                                              generation,
+                                                              gens,
+                                                              recessives,
+                                                              max_matings=max_matings,
+                                                              base_herds=base_herds,
+                                                              debug=debug,
+                                                              penalty=False,
+                                                              service_bulls=service_bulls,
+                                                              edit_prop=edit_prop,
+                                                              edit_type=edit_type,
+                                                              edit_trials=edit_trials,
+                                                              embryo_trials=embryo_trials)
+
         # The default scenario is random mating.
         else:
             cows, bulls, dead_cows, dead_bulls = random_mating(cows,
@@ -2864,8 +2885,8 @@ if __name__ == '__main__':
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
                                    # 'C' = CRISPR, 'P' = perfect (no failures/only successes).
-    edit_trials =   1              # The number of attempts to edit an embryo successfully (-1 = repeat until success).
-    embryo_trials = 1              # The number of attempts to transfer an edited embryo successfully(-1 = repeat until success).
+    edit_trials =   -1             # The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    embryo_trials = -1             # The number of attempts to transfer an edited embryo successfully(-1 = repeat until success).
 
     # Recessives are stored in a list of lists. The first value in each list is the minor allele frequency in the base
     # population, and the second number is the economic value of the minor allele. If the economic value is $20, that
@@ -2906,7 +2927,9 @@ if __name__ == '__main__':
     #              rng_seed=rng_seed,
     #              history_freq=history_freq,
     #              edit_prop=edit_prop,
-    #              edit_type=edit_type)
+    #              edit_type=edit_type,
+    #              edit_trials=edit_trials,
+    #              embryo_trials=embryo_trials)
     #
     # # Now run truncation selection, just to introduce some genetic trend.
     # print '=' * 80
@@ -2923,7 +2946,9 @@ if __name__ == '__main__':
     #              rng_seed=rng_seed,
     #              history_freq=history_freq,
     #              edit_prop=edit_prop,
-    #              edit_type=edit_type)
+    #              edit_type=edit_type,
+    #              edit_trials=edit_trials,
+    #              embryo_trials=embryo_trials)
     #
     # # This is the real heart of the analysis, applying Pryce's method, which accounts for
     # # inbreeding but NOT for recessives.
@@ -2945,13 +2970,35 @@ if __name__ == '__main__':
     #              rng_seed=rng_seed,
     #              history_freq=history_freq,
     #              edit_prop=edit_prop,
-    #              edit_type=edit_type)
+    #              edit_type=edit_type,
+    #              edit_trials=edit_trials,
+    #              embryo_trials=embryo_trials)
 
     # The 'pryce_r' scenario applies Pryce's method, which accounts for inbreeding
     # and also for recessive effects.
     print '=' * 80
     recessives = copy.deepcopy(default_recessives)
-    run_scenario(scenario='pryce_r',
+    # run_scenario(scenario='pryce_r',
+    #              percent=percent,
+    #              base_bulls=base_bulls,
+    #              base_cows=base_cows,
+    #              base_herds=base_herds,
+    #              service_bulls=service_bulls,
+    #              max_bulls=max_bulls,
+    #              max_cows=max_cows,
+    #              debug=debug,
+    #              filetag='_crispr',
+    #              recessives=recessives,
+    #              gens=generations,
+    #              max_matings=max_matings,
+    #              rng_seed=rng_seed,
+    #              history_freq=history_freq,
+    #              edit_prop=edit_prop,
+    #              edit_type=edit_type,
+    #              edit_trials=edit_trials,
+    #              embryo_trials=embryo_trials)
+
+    run_scenario(scenario='polled',
                  percent=percent,
                  base_bulls=base_bulls,
                  base_cows=base_cows,
@@ -2967,4 +3014,6 @@ if __name__ == '__main__':
                  rng_seed=rng_seed,
                  history_freq=history_freq,
                  edit_prop=edit_prop,
-                 edit_type=edit_type)
+                 edit_type=edit_type,
+                 edit_trials=edit_trials,
+                 embryo_trials=embryo_trials)
