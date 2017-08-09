@@ -211,6 +211,13 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     # Assume that polled bulls average ~1 SD lower genetic merit than horned bulls, based on average
     # PTA for NM$ of $590 versus $761 (difference of $171) from Spurlock et al., 2014,
     # http://dx.doi.org/10.3168/jds.2013-7746.
+    for r in recessives:
+        if r[3] == 'Horned':
+            horned == True
+        else:
+            horned = False
+        if horned:
+            horned_loc = [r[3] for r in recessives].index('Horned')
 
     # Add animals to the base cow list.
     if debug:
@@ -241,8 +248,12 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         if b in id_list:
             if debug:
                 print '[setup]: Error! A bull with ID %s already exists in the ID list!' % b
-        b_list = [b, 0, 0, (-1*random.randint(0, 9)), 'M', random.randint(0, base_herds-1), 'A', '',
-                  -1, base_bull_tbv.item(i), 0.0, [], []]
+        if horned and base_bull_gt[i][horned_loc] >= 0:
+            bull_tbv = base_bull_tbv.item(i) - (sigma * polled_diff)
+        else:
+            bull_tbv = base_bull_tbv.item(i)
+        b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
+                  -1, bull_tbv, 0.0, [], []]
         for r in xrange(len(recessives)):
             b_list[-1].append(base_bull_gt.item(i, r))
             b_list[11].append(0)
