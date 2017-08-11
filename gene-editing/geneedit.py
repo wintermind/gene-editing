@@ -390,9 +390,10 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
             dead_bulls.append(nb)
 
     # Make sure we have current coefficients of inbreeding -- we'll need them for matings in the next generation.
-    prefix = 'random'
-    cows, bulls, dead_cows, dead_bulls = compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation,
-                                                            generations, prefix, debug)
+    filetag = 'random'
+    cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr = compute_inbreeding(cows, bulls, dead_cows,
+                                                                                           dead_bulls, generation,
+                                                                                           generations, filetag, debug)
 
     return cows, bulls, dead_cows, dead_bulls
 
@@ -411,7 +412,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
 # * Minor allele frequencies in the recessives lists need to be updated
 
 
-def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
+def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                   recessives, pct=0.10, edit_prop=[0.0,0.0], edit_type='C',
                   edit_trials=1, embryo_trials=1, debug=False):
 
@@ -444,11 +445,11 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     """
 
     if debug:
-        print '[toppct_mating]: PARMS:\n\tgeneration: %s\n\trecessives; %s\n\tpct: %s\n\tdebug: %s' % \
+        print '[truncation_mating]: PARMS:\n\tgeneration: %s\n\trecessives; %s\n\tpct: %s\n\tdebug: %s' % \
             (generation, recessives, pct, debug)
     # Never trust users, they are lying liars
     if pct < 0.0 or pct > 1.0:
-        print '[toppct_mating]: %s is outside of the range 0.0 <= pct <= 1.0, changing to 0.10' % pct
+        print '[truncation_mating]: %s is outside of the range 0.0 <= pct <= 1.0, changing to 0.10' % pct
         pct = 0.10
 
     # Sort bulls on TBV in ascending order
@@ -456,7 +457,7 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     # How many do we keep?
     b2k = int(pct*len(bulls))
     if debug:
-        print '[toppct_mating]: Using %s bulls for mating' % b2k
+        print '[truncation_mating]: Using %s bulls for mating' % b2k
     # Set-up data structures
     new_cows = []
     new_bulls = []
@@ -464,15 +465,15 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     # Now we need to randomly assign mates. We do this as follows:
     #     1. Loop over cow list
     if debug: 
-        print '\t[toppct_mating]: %s bulls in list for mating' % len(bulls)
-        print '\t[toppct_mating]: %s cows in list for mating' % len(cows)
+        print '\t[truncation_mating]: %s bulls in list for mating' % len(bulls)
+        print '\t[truncation_mating]: %s cows in list for mating' % len(cows)
     for c in cows:
         # Is the cow alive?
         if c[6] == 'A':
             cow_id = c[0]
             mated = False
             if debug:
-                print '\t[toppct_mating]: Mating cow %s' % cow_id
+                print '\t[truncation_mating]: Mating cow %s' % cow_id
             while not mated:
     #     2. For each cow, pick a bull at random
                 # Note the offset index to account for the fact that we're picking only
@@ -497,12 +498,12 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                     mated = True
                 else:
                     if debug:
-                        print '[toppct_mating]: bull %s (ID %s) is not alive' % (bull_to_use, bull_id)
+                        print '[truncation_mating]: bull %s (ID %s) is not alive' % (bull_to_use, bull_id)
     if debug:
-        print '\t[toppct_mating]: %s animals in original cow list' % len(cows)
-        print '\t[toppct_mating]: %s animals in new cow list' % len(new_cows)
-        print '\t[toppct_mating]: %s animals in original bull list' % len(bulls)
-        print '\t[toppct_mating]: %s animals in new bull list' % len(new_bulls)
+        print '\t[truncation_mating]: %s animals in original cow list' % len(cows)
+        print '\t[truncation_mating]: %s animals in new cow list' % len(new_cows)
+        print '\t[truncation_mating]: %s animals in original bull list' % len(bulls)
+        print '\t[truncation_mating]: %s animals in new bull list' % len(new_bulls)
 
     # If gene editing is going to happen, it happens here
     do_edits = [str(recessives[r][-1]) for r in range(len(recessives))]
@@ -528,13 +529,14 @@ def toppct_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
         else:
             dead_bulls.append(nb)
     if debug:
-        print '\t[toppct_mating]: %s animals in final cow list' % len(cows)
-        print '\t[toppct_mating]: %s animals in final bull list' % len(bulls)
+        print '\t[truncation_mating]: %s animals in final cow list' % len(cows)
+        print '\t[truncation_mating]: %s animals in final bull list' % len(bulls)
 
     # Make sure we have current coefficients of inbreeding -- we'll need them for matings in the next generation.
-    prefix = 'toppct'
-    cows, bulls, dead_cows, dead_bulls = compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation,
-                                                            generations, prefix, debug)
+    filetag = 'truncation'
+    cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr = compute_inbreeding(cows, bulls, dead_cows,
+                                                                                           dead_bulls, generation,
+                                                                                           generations, filetag, debug)
 
     return cows, bulls, dead_cows, dead_bulls
 
@@ -571,19 +573,8 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
     return next_id
 
 
-# compute_inbreeding() uses INBUPGF90 to compute coefficients of inbreeding for each animal
-# in the pedigree, and updated animal records to include that information.
-#
-# cows          : A list of live cow records
-# bulls         : A list of live bull records
-# dead_cows     : A list of dead cow records
-# dead_bulls    : A list of dead bull records
-# generation    : The current generation in the simulation
-# prefix        : Prefix for filenames to tell scenarios apart.
-# debug         : Flag to activate/deactivate debugging messages
-
-
-def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, prefix='',
+def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, filetag='',
+                       penalty=False, proxy_matings=False, bull_criterion='random', bull_deficit='use_horned',
                        debug=False):
     """Compute coefficients of inbreeding for each animal in the pedigree.
 
@@ -599,8 +590,16 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     :type generation: int
     :param generations: The total number of generations in the simulation.
     :type generations: int
-    :param prefix: Prefix used for filenames to tell scenarios apart.
-    :type prefix: string
+    :param filetag: Prefix used for filenames to tell scenarios apart.
+    :type filetag: string
+    :param penalty: Boolean. Adjust PA for recessives, or adjust only for inbreeding
+    :type penalty: bool
+    :param proxy_matings: Form "dummy" calves to get inbreeding of matings of all cows to all bulls..
+    :type proxy_matings: bool
+    :param bull_criterion: Criterion used to select the group of bulls for mating.
+    :type bull_criterion: string
+    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
+    :type bull_deficit: string
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls with updated inbreeding.
@@ -617,10 +616,20 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     # pedigree to avoid memory fragmentation/swapping when working with large Python lists. If that
     # can't be done, I'll fall back to a list. This does mean that the code has to accommodate both
     # cases, so it's a little verbose.
-    next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
-    if debug:
-        print '\t[compute_inbreeding]: next_id = %s in generation %s' % (next_id, generation)
+    #next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
+    #if debug:
+    #    print '\t[compute_inbreeding]: next_id = %s in generation %s' % (next_id, generation)
     pedigree_size = len(cows) + len(dead_cows) + len(bulls) + len(dead_bulls)
+    # If we're doing proxy matings then we need a few more variables.
+    if proxy_matings:
+        # Note that I'm including a fudge factor by multiplying the bulls by 2 so that we get an
+        # array longer than we need.
+        pedigree_size += (2 * len(cows) * service_bulls)  # Leave room for new calves
+        matings = {}
+        bull_portfolio = {}
+        cow_portfolio = {}
+    # Can we allocate enough memory for this pedigree, or do we need to get
+    # Gene Kranz on the horn?
     try:
         pedigree = np.zeros((pedigree_size,), dtype=('a20, a20, a20, i4'))
         print '\t[compute_inbreeding]: Allocated a NumPy array of size %s to store pedigree at %s' % \
@@ -658,6 +667,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             if b[0] not in id_list:
                 id_list.append(b[0])
         pedigree_counter += 1
+        matings[b[0]] = 0
     for db in dead_bulls:
         if isinstance(pedigree, (np.ndarray, np.generic)):
             pedigree[pedigree_counter] = (db[0], db[1], db[2], db[3]+10)
@@ -669,12 +679,55 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     if debug:
         print '\t[compute_inbreeding]: %s "old" animals in pedigree in generation %s at %s' % \
             (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    #
+    #
+    # PROXY MATING CODE
+    #
+    #
+    if proxy_matings:
+        # We need to fake offspring of living bulls and cows because it's faster to compute inbreeding than relationships.
+        calfcount = 0
+        if debug:
+            print '\t[compute_inbreeding]: Mating all cows to all herd bulls at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        for herd in xrange(base_herds):
+            bull_portfolio[herd] = []
+            cow_portfolio[herd] = []
+
+            herd_bulls = get_herd_bulls(bulls, recessives, bull_criterion, bull_deficit, debug)
+
+            herd_bulls.sort(key=lambda x: x[9], reverse=True)  # Sort in descending order on TBV
+            herd_bulls = herd_bulls[0:service_bulls]  # Keep the top "service_bulls" sires for use
+            herd_cows = [c for c in cows if c[5] == herd]
+            # Now create proxy calves for each cow-bull combination.
+            for b in herd_bulls:
+                bull_portfolio[herd].append(b)
+                for c in herd_cows:
+                    if c not in cow_portfolio[herd]:
+                        cow_portfolio[herd].append(c)
+                    calf_id = str(b[0]) + '__' + str(c[0])
+                    if calf_id in id_list:
+                        if debug:
+                            print '\t\t[compute_inbreeding]: Error! A calf with ID %s already exists in the ID list in \
+                                  generation %s!' % (calf_id, generation)
+                    if pedigree_array:
+                        pedigree[pedigree_counter] = (calf_id, b[0], c[0], generation + 10)
+                    else:
+                        pedigree.append(' '.join([calf_id, b[0], c[0], generation + 10, '\n']))
+                    pedigree_counter += 1
+                    calfcount += 1
+
+        if debug:
+            print '\t\t[compute_inbreeding]: %s calves added to pedigree in generation %s at %s' % \
+                  (calfcount, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+            print '\t\t[compute_inbreeding]: %s total animals in pedigree in generation %s at %s' % \
+                  (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
     # Write the pedigree to a file.
-    if len(prefix) == 0:
+    if len(filetag) == 0:
         pedfile = 'compute_inbreeding_%s.txt' % generation
     else:
-        pedfile = 'compute_inbreeding_%s_%s.txt' % (prefix, generation)
+        pedfile = 'compute_inbreeding_%s_%s.txt' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Writing pedigree to %s at %s' % \
               (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -688,7 +741,11 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             ofh.write(p)
     ofh.close()
     del pedigree
-
+    #
+    #
+    # INBREEDING CODE
+    #
+    #
     # PyPedal is just too slow when the pedigrees are large (e.g., millons of records), so
     # we're going to use Ignacio Aguilar's INBUPGF90 program.
     #
@@ -701,10 +758,16 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     # Stack Overflow (http://stackoverflow.com/questions/12057794/
     # python-using-popen-poll-on-background-process). I'm not 100% sure that this works
     # as intended, but I'm out of ideas.
-    if len(prefix) == 0:
-        logfile = 'compute_inbreeding_%s.log' % generation
+    if len(filetag) == 0:
+        if penalty:
+            logfile = 'compute_inbreeding_r_%s.log' % generation
+        else:
+            logfile = 'compute_inbreeding_%s.log' % generation
     else:
-        logfile = 'compute_inbreeding_%s_%s.log' % (prefix, generation)
+        if penalty:
+            logfile = 'compute_inbreeding_r_%s_%s.log' % (filetag, generation)
+        else:
+            logfile = 'compute_inbreeding_%s_%s.log' % (filetag, generation)
     # Several methods can be used:
     # 1 - recursive as in Aguilar & Misztal, 2008 (default)
     # 2 - recursive but with coefficients store in memory, faster with large number of
@@ -737,10 +800,10 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     # Load the COI into a dictionary keyed by original animal ID
-    if len(prefix) == 0:
+    if len(filetag) == 0:
         coifile = 'compute_inbreeding_%s.txt.solinb' % generation
     else:
-        coifile = 'compute_inbreeding_%s_%s.txt.solinb' % (prefix, generation)
+        coifile = 'compute_inbreeding_%s_%s.txt.solinb' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Putting coefficients of inbreeding from %s.solinb in a dictionary at %s' \
             % (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -748,45 +811,125 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     ifh = open(coifile, 'r')
     for line in ifh:
         pieces = line.split()
-        inbr[int(pieces[0])] = float(pieces[1])
+        #inbr[int(pieces[0])] = float(pieces[1])
+        inbr[pieces[0]] = float(pieces[1])
     ifh.close()
 
     # Now, assign the coefficients of inbreeding to the animal records
-    for c in cows: c[10] = inbr[c[0]]
-    for dc in dead_cows: dc[10] = inbr[dc[0]]
-    for b in bulls: b[10] = inbr[b[0]]
-    for db in dead_bulls: db[10] = inbr[db[0]]
+    if debug:
+        print '\t[compute_inbreeding]: Writing coefficients of inbreeding to animal records at %s' \
+            % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    # I *think* that animals with no offspring are getting dropped from the pedigree when inbupgf90 is doing its
+    # thing
+    for c in cows: c[10] = inbr[str(c[0])]
+    for dc in dead_cows: dc[10] = inbr[str(dc[0])]
+    for b in bulls: b[10] = inbr[str(b[0])]
+    for db in dead_bulls: db[10] = inbr[str(db[0])]
 
     # Clean-up
     try:
         if generation != generations:
-            if len(prefix) > 0:
-                os.remove('compute_inbreeding_%s_%s.txt' % (prefix, generation))
-                os.remove('compute_inbreeding_%s_%s.txt.errors' % (prefix, generation))
-                os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (prefix, generation))
-                os.remove('compute_inbreeding_%s_%s.txt.solinb' % (prefix, generation))
+            if len(filetag) > 0:
+                if penalty:
+                    os.remove('compute_inbreeding_r_%s_%s.txt' % (filetag, generation))
+                    os.remove('compute_inbreeding_r_%s_%s.txt.errors' % (filetag, generation))
+                    os.remove('compute_inbreeding_r_%s_%s.txt.inbavgs' % (filetag, generation))
+                    os.remove('compute_inbreeding_r_%s_%s.txt.solinb' % (filetag, generation))
+                else:
+                    os.remove('compute_inbreeding_%s_%s.txt' % (filetag, generation))
+                    os.remove('compute_inbreeding_%s_%s.txt.errors' % (filetag, generation))
+                    os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (filetag, generation))
+                    os.remove('compute_inbreeding_%s_%s.txt.solinb' % (filetag, generation))
             else:
-                os.remove('compute_inbreeding_%s.txt' % generation)
-                os.remove('compute_inbreeding_%s.txt.errors' % generation)
-                os.remove('compute_inbreeding_%s.txt.inbavgs' % generation)
-                os.remove('compute_inbreeding_%s.txt.solinb' % generation)
+                if penalty:
+                    os.remove('compute_inbreeding_r_%s.txt' % (generation))
+                    os.remove('compute_inbreeding_r_%s.txt.errors' % (generation))
+                    os.remove('compute_inbreeding_r_%s.txt.inbavgs' % (generation))
+                    os.remove('compute_inbreeding_r_%s.txt.solinb' % (generation))
+                else:
+                    os.remove('compute_inbreeding_%s.txt' % (generation))
+                    os.remove('compute_inbreeding_%s.txt.errors' % (generation))
+                    os.remove('compute_inbreeding_%s.txt.inbavgs' % (generation))
+                    os.remove('compute_inbreeding_%s.txt.solinb' % (generation))
     except OSError:
         print '\t[compute_inbreeding]: Unable to delete all inbreeding files.'
 
     # Send everything back to the calling routine
-    return cows, bulls, dead_cows, dead_bulls
+    return cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr
 
+
+def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use_horned', debug=False):
+
+    """Return a list of bulls for mating to a herd of cows.
+
+    :param bulls: A list of live bull records.
+    :type bulls: list
+    :param recessives: A list of recessives in the population.
+    :type recessives: list
+    :param bull_criterion: Criterion used to select the group of bulls for mating.
+    :type bull_criterion: string
+    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
+    :type bull_deficit: string
+    :param debug: Activate/deactivate debugging messages.
+    :type debug: boolean
+    :return: A list of bulls for mating to cows in a herd.
+    :rtype: list
+    """
+
+    if bull_criterion not in ['random', 'polled']:
+        if debug:
+            print '\t\t[get_herd_bulls]: bull_criterion had an unrecognized value of %s, setting to \'random\'.' \
+                  % bull_criterion
+        bull_criterion = 'random'
+
+    if bull_deficit not in ['use_horned', 'no_limit']:
+        print '\t\t[get_herd_bulls]: bull_deficit has a value of %s but should be \'use_horned\' or \'no_limit\', ' \
+              'setting to \'no_limit\'.' % bull_deficit
+
+    # Use polled bulls
+    if bull_criterion == 'polled':
+        # Copies = 4 will select all PP and Pp bulls.
+        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=4)
+        random.shuffle(mating_bulls)  # Randomly order bulls
+        other_bulls = [bull for bull in bulls if bull not in mating_bulls]
+        random.shuffle(other_bulls)
+        # In some scenarios, there are only a few bulls available. When that happens, 20% can be less than service
+        # bulls, so we're going to use service_bulls as a floor. If there are too few bulls in mating_bulls
+        # add a random selection of non-polled bulls to fill out the list.
+        if len(mating_bulls) < service_bulls:
+            if debug:
+                print '\t[polled_mating]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
+                      (len(mating_bulls), service_bulls)
+            if bull_deficit == 'horned':
+                herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
+            else:
+                herd_bulls = mating_bulls
+        else:
+            herd_bulls = mating_bulls[0:service_bulls + 1]  # Select 20% at random
+    # The default case is 'random'.
+    else:
+        # Sample 20% of the active bulls at random, then sort them on TBV and take the top "service_sires" bulls
+        # for use in the herd.
+        random.shuffle(bulls)  # Randomly order bulls
+        # In some scenarios, there are only a few. When that happens, 20% can be less than service bulls, so we're
+        # going to use service_bulls as a floor.
+        if int(len(bulls) / 5) + 1 < service_bulls:
+            herd_bulls = bulls[0:service_bulls]  # Select service_bulls at random
+        else:
+            herd_bulls = bulls[0:int(len(bulls) / 5)]  # Select 20% at random
+
+    return herd_bulls
 
 # This routine uses an approach similar to that of Pryce et al. (2012) allocate matings of bulls
 # to cows. Parent averages are discounted for any increase in inbreeding in the progeny, and
 # they are further discounted to account for the effect of recessives on lifetime income.
 
 
-def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
+def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, filetag,
                  recessives, max_matings=500, base_herds=100, debug=False,
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False,
-                 flambda=25.):
+                 flambda=25., bull_criterion='random', bull_deficit='use_horned'):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -802,6 +945,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     :type generation: int
     :param generations: The total number of generations in the simulation.
     :type generations: int
+    :param filetag: Prefix used for filenames to tell scenarios apart.
+    :type filetag: string
     :param recessives: A list of recessives in the population.
     :type recessives: list
     :param max_matings: The maximum number of matings permitted for each bull
@@ -826,6 +971,10 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
     :type embryo_inbreeding: boolean
     :param flambda: Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
     :type flambda: float
+    :param bull_criterion: Criterion used to select the group of bulls for mating.
+    :type bull_criterion: string
+    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
+    :type bull_deficit: string
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -844,231 +993,22 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
         max_matings = 500
     if not type(max_matings) is int:
         print '\t[pryce_mating]: % is not not an integer, changing num_matings to 500.' % max_matings
+
     #
-    # Now, we're going to need to construct a pedigree that includes matings of all cows in
-    # each herd to the bulls randomly assigned to that herd. Bulls are randomly assigned to
-    # herds to reflect different sire selection policies. It is faster to calculate the
-    # inbreeding of the potential offspring than it is to calculate relationships among parents
-    # because the latter requires that we store relationships among all parents.
+    # Compute inbreeding
     #
-    # I'm going to try and allocate a fixed-length NumPy array large enough to store the entire
-    # pedigree to avoid memory fragmentation/swapping when working with large Python lists. If that
-    # can't be done, I'll fall back to a list. This does mean that the code has to accommodate both
-    # cases, so it's a little verbose.
+    cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr = compute_inbreeding(cows, bulls,
+                                                                                                          dead_cows,
+                                                                                           dead_bulls, generation,
+                                                                                           generations, filetag,
+                                                                                           penalty, proxy_matings=True,
+                                                                                           bull_criterion=bull_criterion,
+                                                                                           bull_deficit=bull_deficit,
+                                                                                           debug=debug)
     next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
-    if debug:
-        print '\t[pryce_mating]: next_id = %s in generation %s' % (next_id, generation)
-    matings = {}
-    bull_portfolio = {}
-    cow_portfolio = {}
-    #
-    #
-    # PEDIGREE CODE
-    #
-    #
-    pedigree_size = len(cows) + len(dead_cows) + len(bulls) + len(dead_bulls)
-    # Note that I'm including a fudge factor by multiplying the bulls by 2 so that we get an
-    # array longer than we need.
-    #pedigree_size += int((2*len(bulls)) * len(cows)) / base_herds
-    pedigree_size += (2 * len(cows) * service_bulls) # Leave room for new calves
-    try:
-        pedigree = np.zeros((pedigree_size,), dtype=('a20, a20, a20, i4'))
-        print '\t[pryce_mating]: Allocated a NumPy array of size %s to store pedigree at %s' % \
-              (pedigree_size, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    except MemoryError:
-        pedigree = []
-        print '\t[pryce_mating]: Could not allocate an array of size %s, using a SLOWWWW Python list at %s' % \
-              (pedigree_size, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    id_list = []
-    pedigree_counter = 0
-    pedigree_array = isinstance(pedigree, (np.ndarray, np.generic))
-    if debug:
-        print '\t[pryce_mating]: Putting all cows and herd bulls in a pedigree at %s' % \
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    for c in cows:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (c[0], c[1], c[2], c[3]+10)
-        else:
-            if c[0] not in id_list:
-                pedigree.append(' '.join([c[0], c[1], c[2], c[3]+10, '\n']))
-                id_list.append(c[0])
-        pedigree_counter += 1
-    for dc in dead_cows:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (dc[0], dc[1], dc[2], dc[3]+10)
-        else:
-            if dc[0] not in id_list:
-                pedigree.append(' '.join([dc[0], dc[1], dc[2], dc[3]+10, '\n']))
-                id_list.append(dc[0])
-        pedigree_counter += 1
-    for b in bulls:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (b[0], b[1], b[2], b[3]+10)
-        else:
-            if b[0] not in id_list:
-                pedigree.append(' '.join([b[0], b[1], b[2], b[3]+10, '\n']))
-                id_list.append(b[0])
-        pedigree_counter += 1
-        matings[b[0]] = 0
-    for db in dead_bulls:
-        if isinstance(pedigree, (np.ndarray, np.generic)):
-            pedigree[pedigree_counter] = (db[0], db[1], db[2], db[3]+10)
-        else:
-            if db[0] not in id_list:
-                pedigree.append(' '.join([db[0], db[1], db[2], db[3]+10, '\n']))
-                id_list.append(db[0])
-        pedigree_counter += 1
-    if pedigree_array:
-        id_list = pedigree[:][0].tolist()
-    if debug:
-        print '\t[pryce_mating]: %s "old" animals in pedigree in generation %s at %s' % \
-            (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # We need to fake offspring of living bulls and cows because it's faster to compute inbreeding than relationships.
-    calfcount = 0
-    #
-    #
-    # PROXY MATING CODE
-    #
-    #
-    if debug:
-        print '\t[pryce_mating]: Mating all cows to all herd bulls at %s' % \
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    for herd in xrange(base_herds):
-        bull_portfolio[herd] = []
-        cow_portfolio[herd] = []
-        # Sample 20% of the active bulls at random, then sort them on TBV and take the top "service_sires" bulls
-        # for use in the herd.
-        random.shuffle(bulls)                               # Randomly order bulls
-        # In some scenarios, there are only a few. When that happens, 20% can be less than service bulls, so we're
-        # going to use service_bulls as a floor.
-        if int(len(bulls)/5)+1 < service_bulls:
-            herd_bulls = bulls[0:service_bulls]           # Select service_bulls at random
-        else:
-            herd_bulls = bulls[0:int(len(bulls)/5)]       # Select 20% at random
-        herd_bulls.sort(key=lambda x: x[9], reverse=True)   # Sort in descending order on TBV
-        herd_bulls = herd_bulls[0:service_bulls]          # Keep the top "service_bulls" sires for use
-        herd_cows = [c for c in cows if c[5] == herd]
-        # Now create proxy calves for each cow-bull combination.
-        for b in herd_bulls:
-            bull_portfolio[herd].append(b)
-            for c in herd_cows:
-                if c not in cow_portfolio[herd]:
-                    cow_portfolio[herd].append(c)
-                calf_id = str(b[0])+'__'+str(c[0])
-                if calf_id in id_list:
-                    if debug:
-                        print '\t\t[pryce_mating]: Error! A calf with ID %s already exists in the ID list in \
-                            generation %s!' % (calf_id, generation)
-                if pedigree_array:
-                    pedigree[pedigree_counter] = (calf_id, b[0], c[0], generation+10)
-                else:
-                    pedigree.append(' '.join([calf_id, b[0], c[0], generation+10, '\n']))
-                pedigree_counter += 1
-                calfcount += 1
 
-    if debug:
-        print '\t\t[pryce_mating]: %s calves added to pedigree in generation %s at %s' % \
-            (calfcount, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-        print '\t\t[pryce_mating]: %s total animals in pedigree in generation %s at %s' % \
-            (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # Write the pedigree to a file.
-    if penalty:
-        pedfile = 'pedigree_pryce_r_%s.txt' % generation
-    else:
-        pedfile = 'pedigree_pryce_%s.txt' % generation
-    if debug:
-        print '\t[pryce_mating]: Writing pedigree to %s at %s' % \
-              (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    ofh = file(pedfile, 'w')
-    if isinstance(pedigree, (np.ndarray, np.generic)):
-        for pidx in xrange(pedigree_counter):
-            p = ' '.join([pedigree[pidx][0], pedigree[pidx][1], pedigree[pidx][2], str(pedigree[pidx][3]), '\n'])
-            ofh.write(p)
-    else:
-        for p in pedigree:
-            ofh.write(p)
-    ofh.close()
-    del pedigree
-    #
-    #
-    # INBREEDING CODE
-    #
-    #
-    # PyPedal is just too slow when the pedigrees are large (e.g., millons of records), so
-    # we're going to use Ignacio Aguilar's INBUPGF90 program.
-    #
-    # Per an e-mail from Ignacio Aguilar on 06/25/2014, INBUPGF90 does NOT emit a proper
-    # status return code when it exits, which makes it tricky to know for sure when the
-    # job is done. I've observed a number of cases where the simulation appears to stall
-    # because subprocess.call() does not recognize that INBUPGF90 has finished a job. So,
-    # I've cobbled-together a solution using ideas from Ezequiel Nicolazzi
-    # (https://github.com/nicolazzie/AffyPipe/blob/master/AffyPipe.py) and a post on
-    # Stack Overflow (http://stackoverflow.com/questions/12057794/
-    # python-using-popen-poll-on-background-process). I'm not 100% sure that this works
-    # as intended, but I'm out of ideas.
-    if penalty:
-        logfile = 'pedigree_pryce_r_%s.log' % generation
-    else:
-        logfile = 'pedigree_pryce_%s.log' % generation
-    # Several methods can be used:
-    # 1 - recursive as in Aguilar & Misztal, 2008 (default)
-    # 2 - recursive but with coefficients store in memory, faster with large number of
-    #     generations but more memory requirements
-    # 3 - method as in Meuwissen & Luo 1992
-    if debug:
-        print '\t[pryce_mating]: Started inbupgf90 to calculate COI at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '3', '--yob', '>', logfile, '2>&1&']
-    time_waited = 0
-    p = subprocess.Popen(callinbupgf90, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    while p.poll() is None:
-        # Wait 1 second between pokes with a sharp stick.
-        time.sleep(10)
-        time_waited += 10
-        p.poll()
-        if time_waited % 60 == 0 and debug:
-            print '\t\t[pryce_mating]: Waiting for INBUPGF90 to finish -- %s minute(s) so far...' % int(time_waited/60)
-    # Pick-up the output from INBUPGF90
-    (results, errors) = p.communicate()
-    if debug:
-        if errors == '':
-            print '\t\t[pryce_mating]: INBUPGF90 finished without problems at %s!' % \
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            if debug:
-                print '\t\t\t%s' % results
-        else:
-            print '\t\t[pryce_mating]: errors: %s' % errors
-        print '\t[pryce_mating]: Finished inbupgf90 to calculate COI at %s' %\
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # Load the COI into a dictionary keyed by original animal ID
-    if penalty:
-        coifile = 'pedigree_pryce_r_%s.txt.solinb' % generation
-    else:
-        coifile = 'pedigree_pryce_%s.txt.solinb' % generation
-    if debug:
-        print '\t[pryce_mating]: Putting coefficients of inbreeding from %s.solinb in a dictionary at %s' \
-            % (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    inbr = {}
-    ifh = open(coifile, 'r')
-    for line in ifh:
-        pieces = line.split()
-        inbr[pieces[0]] = float(pieces[1])
-    ifh.close()
-
-    # Now, assign the coefficients of inbreeding to the "old" animal records
-    if debug:
-        print '\t[pryce_mating]: Writing coefficients of inbreeding to animal records at %s' \
-            % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # I *think* that animals with no offspring are getting dropped from the pedigree when inbupgf90 is doing its
-    # thing
-    for c in cows: c[10] = inbr[str(c[0])]
-    for dc in dead_cows: dc[10] = inbr[str(dc[0])]
-    for b in bulls: b[10] = inbr[str(b[0])]
-    for db in dead_bulls: db[10] = inbr[str(db[0])]
-    #
     #
     # ASSIGN MATINGS CODE
-    #
     #
     # We want to save F_ij and \sum{P(aa)} for individual matings for later analysis.
     if penalty:
@@ -1244,520 +1184,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
         print '\t\t[pryce_mating]: %s animals in final live bull list' % len(bulls)
         print '\t\t[pryce_mating]: %s animals in final dead bull list' % len(dead_bulls)
 
-    # Clean-up
-    try:
-        if generation != generations:
-            if penalty is True:
-                os.remove('pedigree_pryce_r_%s.txt' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.errors' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.inbavgs' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.solinb' % generation)
-            else:
-                os.remove('pedigree_pryce_%s.txt' % generation)
-                os.remove('pedigree_pryce_%s.txt.errors' % generation)
-                os.remove('pedigree_pryce_%s.txt.inbavgs' % generation)
-                os.remove('pedigree_pryce_%s.txt.solinb' % generation)
-    except OSError:
-        print '\t[pryce_mating]: Unable to clean up all inbreeding files!'
-
     return cows, bulls, dead_cows, dead_bulls
 
-def polled_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
-                 recessives, max_matings=500, base_herds=100, debug=False,
-                 penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
-                 edit_trials=1, embryo_trials=1, embryo_inbreeding=False,
-                 flambda=25., bull_deficit='horned'):
-
-    """Allocate matings only to polled bulls using Pryce et al.'s (2012) or Cole's (2015) method.
-
-    :param cows: A list of live cow records.
-    :type cows: list
-    :param bulls: A list of live bull records.
-    :type bulls: list
-    :param dead_cows: A list of dead cow records.
-    :type dead_cows: list
-    :param dead_bulls: A list of dead bull records.
-    :type dead_bulls: list
-    :param generation: The current generation in the simulation.
-    :type generation: int
-    :param generations: The total number of generations in the simulation.
-    :type generations: int
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
-    :param max_matings: The maximum number of matings permitted for each bull
-    :type max_matings: int
-    :param base_herds: Number of herds in the population.
-    :type base_herds: int
-    :param debug: Activate/deactivate debugging messages.
-    :type debug: True or False
-    :param penalty: Boolean. Adjust PA for recessives, or adjust only for inbreeding
-    :type penalty: bool
-    :param service_bulls: Number of herd bulls to use in each herd each generation.
-    :type service_bulls: int
-    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
-    :type edit_prop: list
-    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
-    :type edit_type: char
-    :param edit_trials: The number of attempts to edit an embryo successfully (-1 = repeat until success).
-    :type edit_trials: int
-    :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
-    :type embryo_trials: int
-    :param embryo_inbreeding: Write a file of coefficients of inbreeding for all possible bull-by-cow matings.
-    :type embryo_inbreeding: boolean
-    :param flambda: Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
-    :type flambda: float
-    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
-    :type bull_deficit: string
-    :return: Separate lists of cows, bulls, dead cows, and dead bulls.
-    :rtype: list
-    """
-
-    if debug:
-        print '\t[polled_mating]: Parameters:\n\t\tgeneration: %s\n\t\tmax_matings: %s\n\t\tbase_herds: ' \
-              '%s\n\t\tdebug: %s\n\t\tservice_bulls: %s\n\t\tpenalty: %s\n\t\tRecessives:' % (generation, max_matings,
-                                                                                              base_herds, debug,
-                                                                                              service_bulls, penalty)
-        for r in recessives:
-            print '\t\t\t%s' % r
-        print
-    # Never trust users, they are lying liars
-    if max_matings < 0:
-        print '\t[polled_mating]: %s is less than 0, changing num_matings to 500.' % max_matings
-        max_matings = 500
-    if not type(max_matings) is int:
-        print '\t[polled_mating]: % is not not an integer, changing num_matings to 500.' % max_matings
-    if bull_deficit not in ['use_horned', 'no_limit']:
-        print '\t[polled_mating]: bull_deficit has a value of %s but should be \'use_horned\' or \'no_limit\', ' \
-              'setting to \'no_limit\'.' % bull_deficit
-    #
-    # Now, we're going to need to construct a pedigree that includes matings of all cows in
-    # each herd to the bulls randomly assigned to that herd. Bulls are randomly assigned to
-    # herds to reflect different sire selection policies. It is faster to calculate the
-    # inbreeding of the potential offspring than it is to calculate relationships among parents
-    # because the latter requires that we store relationships among all parents.
-    #
-    # I'm going to try and allocate a fixed-length NumPy array large enough to store the entire
-    # pedigree to avoid memory fragmentation/swapping when working with large Python lists. If that
-    # can't be done, I'll fall back to a list. This does mean that the code has to accommodate both
-    # cases, so it's a little verbose.
-    next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
-    if debug:
-        print '\t[polled_mating]: next_id = %s in generation %s' % (next_id, generation)
-    matings = {}
-    bull_portfolio = {}
-    cow_portfolio = {}
-    #
-    #
-    # PEDIGREE CODE
-    #
-    #
-    pedigree_size = len(cows) + len(dead_cows) + len(bulls) + len(dead_bulls)
-    # Note that I'm including a fudge factor by multiplying the bulls by 2 so that we get an
-    # array longer than we need.
-    #pedigree_size += int((2*len(bulls)) * len(cows)) / base_herds
-    pedigree_size += (2 * len(cows) * service_bulls) # Leave room for new calves
-    try:
-        pedigree = np.zeros((pedigree_size,), dtype=('a20, a20, a20, i4'))
-        print '\t[polled_mating]: Allocated a NumPy array of size %s to store pedigree at %s' % \
-              (pedigree_size, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    except MemoryError:
-        pedigree = []
-        print '\t[polled_mating]: Could not allocate an array of size %s, using a SLOWWWW Python list at %s' % \
-              (pedigree_size, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    id_list = []
-    pedigree_counter = 0
-    pedigree_array = isinstance(pedigree, (np.ndarray, np.generic))
-    if debug:
-        print '\t[polled_mating]: Putting all cows and herd bulls in a pedigree at %s' % \
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    for c in cows:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (c[0], c[1], c[2], c[3]+10)
-        else:
-            if c[0] not in id_list:
-                pedigree.append(' '.join([c[0], c[1], c[2], c[3]+10, '\n']))
-                id_list.append(c[0])
-        pedigree_counter += 1
-    for dc in dead_cows:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (dc[0], dc[1], dc[2], dc[3]+10)
-        else:
-            if dc[0] not in id_list:
-                pedigree.append(' '.join([dc[0], dc[1], dc[2], dc[3]+10, '\n']))
-                id_list.append(dc[0])
-        pedigree_counter += 1
-    for b in bulls:
-        if pedigree_array:
-            pedigree[pedigree_counter] = (b[0], b[1], b[2], b[3]+10)
-        else:
-            if b[0] not in id_list:
-                pedigree.append(' '.join([b[0], b[1], b[2], b[3]+10, '\n']))
-                id_list.append(b[0])
-        pedigree_counter += 1
-        matings[b[0]] = 0
-    for db in dead_bulls:
-        if isinstance(pedigree, (np.ndarray, np.generic)):
-            pedigree[pedigree_counter] = (db[0], db[1], db[2], db[3]+10)
-        else:
-            if db[0] not in id_list:
-                pedigree.append(' '.join([db[0], db[1], db[2], db[3]+10, '\n']))
-                id_list.append(db[0])
-        pedigree_counter += 1
-    if pedigree_array:
-        id_list = pedigree[:][0].tolist()
-    if debug:
-        print '\t[polled_mating]: %s "old" animals in pedigree in generation %s at %s' % \
-            (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # We need to fake offspring of living bulls and cows because it's faster to compute inbreeding than relationships.
-    calfcount = 0
-    #
-    #
-    # PROXY MATING CODE
-    #
-    #
-    if debug:
-        print '\t[polled_mating]: Mating all cows to all herd bulls at %s' % \
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    for herd in xrange(base_herds):
-        bull_portfolio[herd] = []
-        cow_portfolio[herd] = []
-        # Sample 20% of the active polled bulls at random, then sort them on TBV and take the top "service_sires"
-        # bulls for use in the herd.
-        if debug:
-            pass
-        # Copies = 4 will select all PP and Pp bulls.
-        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=4)
-        random.shuffle(mating_bulls)                               # Randomly order bulls
-        other_bulls = [bull for bull in bulls if bull not in mating_bulls]
-        random.shuffle(other_bulls)
-        # In some scenarios, there are only a few bulls available. When that happens, 20% can be less than service
-        # bulls, so we're going to use service_bulls as a floor. If there are too few bulls in mating_bulls
-        # add a random selection of non-polled bulls to fill out the list.
-        if len(mating_bulls) < service_bulls:
-            if herd == 0:
-                print '\t[polled_mating]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
-                      ( len(mating_bulls), service_bulls )
-            if bull_deficit == 'horned':
-                herd_bulls = mating_bulls + other_bulls[0:(service_bulls-len(mating_bulls)+1)]
-        else:
-            herd_bulls = mating_bulls[0:service_bulls+1]    # Select 20% at random
-        herd_bulls.sort(key=lambda x: x[9], reverse=True) # Sort in descending order on TBV
-        herd_bulls = herd_bulls[0:service_bulls]          # Keep the top "service_bulls" sires for use
-        herd_cows = [c for c in cows if c[5] == herd]
-        # Now create proxy calves for each cow-bull combination.
-        for b in herd_bulls:
-            bull_portfolio[herd].append(b)
-            for c in herd_cows:
-                if c not in cow_portfolio[herd]:
-                    cow_portfolio[herd].append(c)
-                calf_id = str(b[0])+'__'+str(c[0])
-                if calf_id in id_list:
-                    if debug:
-                        print '\t\t[polled_mating]: Error! A calf with ID %s already exists in the ID list in \
-                            generation %s!' % (calf_id, generation)
-                if pedigree_array:
-                    pedigree[pedigree_counter] = (calf_id, b[0], c[0], generation+10)
-                else:
-                    pedigree.append(' '.join([calf_id, b[0], c[0], generation+10, '\n']))
-                pedigree_counter += 1
-                calfcount += 1
-
-    if debug:
-        print '\t\t[polled_mating]: %s calves added to pedigree in generation %s at %s' % \
-            (calfcount, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-        print '\t\t[polled_mating]: %s total animals in pedigree in generation %s at %s' % \
-            (pedigree_counter, generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # Write the pedigree to a file.
-    if penalty:
-        pedfile = 'pedigree_pryce_r_%s.txt' % generation
-    else:
-        pedfile = 'pedigree_pryce_%s.txt' % generation
-    if debug:
-        print '\t[polled_mating]: Writing pedigree to %s at %s' % \
-              (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    ofh = file(pedfile, 'w')
-    if isinstance(pedigree, (np.ndarray, np.generic)):
-        for pidx in xrange(pedigree_counter):
-            p = ' '.join([pedigree[pidx][0], pedigree[pidx][1], pedigree[pidx][2], str(pedigree[pidx][3]), '\n'])
-            ofh.write(p)
-    else:
-        for p in pedigree:
-            ofh.write(p)
-    ofh.close()
-    del pedigree
-    #
-    #
-    # INBREEDING CODE
-    #
-    #
-    # PyPedal is just too slow when the pedigrees are large (e.g., millons of records), so
-    # we're going to use Ignacio Aguilar's INBUPGF90 program.
-    #
-    # Per an e-mail from Ignacio Aguilar on 06/25/2014, INBUPGF90 does NOT emit a proper
-    # status return code when it exits, which makes it tricky to know for sure when the
-    # job is done. I've observed a number of cases where the simulation appears to stall
-    # because subprocess.call() does not recognize that INBUPGF90 has finished a job. So,
-    # I've cobbled-together a solution using ideas from Ezequiel Nicolazzi
-    # (https://github.com/nicolazzie/AffyPipe/blob/master/AffyPipe.py) and a post on
-    # Stack Overflow (http://stackoverflow.com/questions/12057794/
-    # python-using-popen-poll-on-background-process). I'm not 100% sure that this works
-    # as intended, but I'm out of ideas.
-    if penalty:
-        logfile = 'pedigree_pryce_r_%s.log' % generation
-    else:
-        logfile = 'pedigree_pryce_%s.log' % generation
-    # Several methods can be used:
-    # 1 - recursive as in Aguilar & Misztal, 2008 (default)
-    # 2 - recursive but with coefficients store in memory, faster with large number of
-    #     generations but more memory requirements
-    # 3 - method as in Meuwissen & Luo 1992
-    if debug:
-        print '\t[polled_mating]: Started inbupgf90 to calculate COI at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    callinbupgf90 = ['inbupgf90', '--pedfile', pedfile, '--method', '3', '--yob', '>', logfile, '2>&1&']
-    time_waited = 0
-    p = subprocess.Popen(callinbupgf90, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    while p.poll() is None:
-        # Wait 1 second between pokes with a sharp stick.
-        time.sleep(10)
-        time_waited += 10
-        p.poll()
-        if time_waited % 60 == 0 and debug:
-            print '\t\t[polled_mating]: Waiting for INBUPGF90 to finish -- %s minute(s) so far...' % int(time_waited/60)
-    # Pick-up the output from INBUPGF90
-    (results, errors) = p.communicate()
-    if debug:
-        if errors == '':
-            print '\t\t[polled_mating]: INBUPGF90 finished without problems at %s!' % \
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            if debug:
-                print '\t\t\t%s' % results
-        else:
-            print '\t\t[polled_mating]: errors: %s' % errors
-        print '\t[pryce_mating]: Finished inbupgf90 to calculate COI at %s' %\
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # Load the COI into a dictionary keyed by original animal ID
-    if penalty:
-        coifile = 'pedigree_pryce_r_%s.txt.solinb' % generation
-    else:
-        coifile = 'pedigree_pryce_%s.txt.solinb' % generation
-    if debug:
-        print '\t[polled_mating]: Putting coefficients of inbreeding from %s.solinb in a dictionary at %s' \
-            % (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    inbr = {}
-    ifh = open(coifile, 'r')
-    for line in ifh:
-        pieces = line.split()
-        inbr[pieces[0]] = float(pieces[1])
-    ifh.close()
-
-    # Now, assign the coefficients of inbreeding to the "old" animal records
-    if debug:
-        print '\t[polled_mating]: Writing coefficients of inbreeding to animal records at %s' \
-            % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    # I *think* that animals with no offspring are getting dropped from the pedigree when inbupgf90 is doing its
-    # thing
-    for c in cows: c[10] = inbr[str(c[0])]
-    for dc in dead_cows: dc[10] = inbr[str(dc[0])]
-    for b in bulls: b[10] = inbr[str(b[0])]
-    for db in dead_bulls: db[10] = inbr[str(db[0])]
-    #
-    #
-    # ASSIGN MATINGS CODE
-    #
-    #
-    # We want to save F_ij and \sum{P(aa)} for individual matings for later analysis.
-    if penalty:
-        fpdict = {}
-
-    #flambda = 25.           # Loss of NM$ per 1% increase in inbreeding
-    if debug:
-        print '\t[polled_mating]: Starting loop over herds to identify optimal matings at %s' % \
-              datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    tenth = len(bull_portfolio.keys()) / 10
-    if tenth <= 0: tenth = 1
-    herd_counter = 0
-    # For each herd we're going to loop over all possible matings of the cows in the herd to the randomly chosen
-    # bull portfolio and compute a parent average. Then we'll select the actual matings. This will be on a within-
-    # herd basis, so a new B and M will be computed for each herd.
-    new_bulls = []
-    new_cows = []
-    for h in bull_portfolio.keys():
-        herd_counter += 1
-        if herd_counter % tenth == 0 and debug:
-            print '\t\t[polled_mating]: Processing herd %s of %s at %s' % \
-              (herd_counter, len(bull_portfolio.keys()), datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-        # We need these lists so that we can step into the correct locations in the relationship matrix to get the
-        # relationship of each cow to each bull.
-        bids = [str(b[0]) for b in bull_portfolio[h]]
-        cids = [str(c[0]) for c in cow_portfolio[h]]
-        # Setup the B_0 matrix, which will contain PA BV plus an inbreeding penalty
-        b_mat = ma.zeros((len(bull_portfolio[h]), len(cow_portfolio[h])))
-        # Setup the F matrix, which will contain inbreeding coefficients
-        f_mat = ma.zeros((len(bull_portfolio[h]), len(cow_portfolio[h])))
-        # Setup the M matrix, which will contain the actual matings
-        m_mat = ma.zeros((len(bull_portfolio[h]), len(cow_portfolio[h])))
-        # Now process the herd the first time, to compute PA.
-        for b in bull_portfolio[h]:
-            bidx = bids.index(str(b[0]))
-            # print 'Bull idx: ', bidx, ' (', str(b[0]), ')'
-            for c in cow_portfolio[h]:
-                cidx = cids.index(str(c[0]))
-                # print '\tCow idx : ', bidx, ' (', str(c[0]), ')'
-                calf_id = str(b[0])+'__'+str(c[0])
-                # Set accumulator of \sum P(aa) to 0.
-                if penalty:
-                    paa_sum = 0.
-                # Update the matrix of inbreeding coefficients.
-                f_mat[bidx, cidx] = inbr[calf_id]
-                # Now adjust the PA to account for inbreeding and the economic impacts of the recessives.
-                b_mat[bidx, cidx] = (0.5 * (b[9] + c[9])) - (inbr[calf_id] * 100 * flambda)
-                # Adjust the PA of the mating to account for recessives on. If the flag is not set then
-                # results should be similar to those of Pryce et al. (2012).
-                if penalty:
-                    for r in xrange(len(recessives)):
-                        # What are the parent genotypes?
-                        b_gt = b[-1][r]
-                        c_gt = c[-1][r]
-                        if b_gt == -1 and c_gt == -1:           # aa genotypes
-                            # Affected calf, adjust the PA by the full value of an aa calf.
-                            b_mat[bidx, cidx] -= recessives[r][1]
-                            paa_sum += 1.
-                        elif b_gt == 1 and c_gt == 1:           # AA genotypes
-                            # Calf cannot be aa, no adjustment to the PA.
-                            pass
-                        else:
-                            # There is a 1/4 chance of having an affected calf,
-                            # so the PA is adjusted by 1/4 of the "value" of an
-                            # aa calf.
-                            b_mat[bidx, cidx] -= (0.25 * recessives[r][1])
-                            paa_sum += 0.25
-                    # Store the inbreeding/P(aa) info for later. We're saving only calves because they're the animals
-                    # for which we sum the P(aa) to make mating decisions.
-                    fpdict[calf_id] = {}
-                    fpdict[calf_id]['sire'] = str(b[0])
-                    fpdict[calf_id]['dam'] = str(c[0])
-                    fpdict[calf_id]['gen'] = generation
-                    fpdict[calf_id]['inbr'] = inbr[calf_id]
-                    fpdict[calf_id]['paa'] = paa_sum
-                    fpdict[calf_id]['mating'] = 0
-
-        #
-        # From Pryce et al. (2012) (http://www.journalofdairyscience.org/article/S0022-0302(11)00709-0/fulltext#sec0030)
-        # A matrix of selected mates (mate allocation matrix; M) was constructed, where Mij=1 if the corresponding
-        # element, Bij was the highest value in the column Bj; that is, the maximum value of all feasible matings for
-        # dam j, all other elements were set to 0, and were rejected sire and dam combinations.
-        #
-        # Sort bulls on ID in ascending order
-        bull_portfolio[h].sort(key=lambda x: x[0])
-        cow_id_list = [c[0] for c in cow_portfolio[h]]
-        if len(cow_id_list) > ( service_bulls * max_matings ):
-            print '\t[polled_mating]: WARNING! There are %s cows in herd %s, but %s service sires limited to %s matings ' \
-                'cannot breed that many cows! Only the first %s cows in the herd will be bred, the other %s will be ' \
-                'left open.' % (len(cow_id_list), h, service_bulls, max_matings, (service_bulls*max_matings),
-                                (len(cow_id_list)-(service_bulls*max_matings)))
-        # Now loop over B to allocate the best matings
-        for c in cow_portfolio[h]:
-            # What column in b_mat corresponds to cow c?
-            cow_loc = cow_id_list.index(c[0])
-            # Get a vector of indices that would result in a sorted list.
-            sorted_bulls = ma.argsort(b_mat[:, cow_loc])
-            # The first element in sorted_bulls is the index of the smallest element in b_mat[:,cow_loc]. The
-            # last element in sorted_bulls is the index of the largest element in b_mat[:,cow_loc].
-            for bidx in xrange(len(bull_portfolio[h])-1, -1, -1):
-                # Does this bull still have matings available?
-                # If the user is over-riding the limit on the number of matings permitted then let the mating happen.
-                if matings[bull_portfolio[h][sorted_bulls[bidx]][0]] >= max_matings and bull_deficit != 'no_limit':
-                    pass
-                    #print 'Bull %s (%s) already has %s matings.' % (bidx, str(bull_portfolio[h][sorted_bulls[bidx]][0]), matings[bull_portfolio[h][sorted_bulls[bidx]][0]])
-                elif bull_portfolio[h][sorted_bulls[bidx]][6] != 'A':
-                    pass
-                    #print 'Bull %s (%s) is dead' % (bidx, str(bull_portfolio[h][sorted_bulls[bidx]][0]))
-                else:
-                    m_mat[sorted_bulls[bidx], cow_loc] = 1
-                    matings[bull_portfolio[h][sorted_bulls[bidx]][0]] += 1
-                    calf = create_new_calf(bull_portfolio[h][sorted_bulls[bidx]], c, recessives, next_id,
-                                           generation, debug=debug)
-                    calf_id = str(bull_portfolio[h][sorted_bulls[bidx]][0])+'__'+str(c[0])
-                    # Assign inbreeding to calf
-                    calf[10] = inbr[calf_id]
-                    if penalty:
-                        fpdict[calf_id]['mating'] = 1
-                    if calf[4] == 'F': new_cows.append(calf)
-                    else: new_bulls.append(calf)
-                    next_id += 1
-                    # ...and, we're done.
-                    break
-
-    # Write the F_ij / \sum{P(aa)} information that we've been accumulating to a file for later analysis.
-    # Note that these files can be very large, and one is written out for EACH round (generation) of the
-    # simulation!
-    if embryo_inbreeding:
-        fpfile = 'fij_paa_pryce_%s.txt' % generation
-        fph = open(fpfile, 'w')
-        for fpkey in fpdict.keys():
-            fpline = '%s %s %s %s %s %s %s\n' % (fpkey, fpdict[fpkey]['sire'], fpdict[fpkey]['dam'],
-                                                 fpdict[fpkey]['gen'], fpdict[fpkey]['inbr'],
-                                                 fpdict[fpkey]['paa'], fpdict[fpkey]['mating']
-                                                 )
-            fph.write(fpline)
-        fph.close()
-
-    if debug:
-        print '\t[polled_mating]: Finished assigning mates and updating M_0 at %s' % \
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        print '\t\t[polled_mating]: %s animals in original cow list' % len(cows)
-        print '\t\t[polled_mating]: %s animals in new cow list' % len(new_cows)
-        print '\t\t[polled_mating]: %s animals in original bull list' % len(bulls)
-        print '\t\t[polled_mating]: %s animals in new bull list' % len(new_bulls)
-
-    # If gene editing is going to happen, it happens here
-    do_edits = [str(recessives[r][-1]) for r in range(len(recessives))]
-    if '1' in do_edits:
-        if edit_prop[0] > 0.0:
-            new_bulls, dead_bulls = edit_genes(new_bulls, dead_bulls, recessives, generation,
-                                               edit_prop[0], edit_type, edit_trials,
-                                               embryo_trials, debug)
-        if edit_prop[1] > 0.0:
-            new_cows, dead_cows = edit_genes(new_cows, dead_cows, recessives, generation,
-                                             edit_prop[1], edit_type, edit_trials,
-                                             embryo_trials, debug)
-    # End of gene editing section
-
-    for nc in new_cows:
-        if nc[6] == 'A':
-            cows.append(nc)
-        else:
-            dead_cows.append(nc)
-    for nb in new_bulls:
-        if nb[6] == 'A':
-            bulls.append(nb)
-        else:
-            dead_bulls.append(nb)
-
-    if debug:
-        print '\t\t[polled_mating]: %s animals in final live cow list' % len(cows)
-        print '\t\t[polled_mating]: %s animals in final dead cow list' % len(dead_cows)
-        print '\t\t[polled_mating]: %s animals in final live bull list' % len(bulls)
-        print '\t\t[polled_mating]: %s animals in final dead bull list' % len(dead_bulls)
-
-    # Clean-up
-    try:
-        if generation != generations:
-            if penalty is True:
-                os.remove('pedigree_pryce_r_%s.txt' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.errors' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.inbavgs' % generation)
-                os.remove('pedigree_pryce_r_%s.txt.solinb' % generation)
-            else:
-                os.remove('pedigree_pryce_%s.txt' % generation)
-                os.remove('pedigree_pryce_%s.txt.errors' % generation)
-                os.remove('pedigree_pryce_%s.txt.inbavgs' % generation)
-                os.remove('pedigree_pryce_%s.txt.solinb' % generation)
-    except OSError:
-        print '\t[polled_mating]: Unable to clean up all inbreeding files!'
-
-    return cows, bulls, dead_cows, dead_bulls
 
 def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=False):
     """Loop through the provided list of animals and create a new list of animals with COPIES
@@ -1826,6 +1254,7 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
               ( len(selected_animals), copies, get_recessive )
 
     return selected_animals
+
 
 # I finally had to refactor the create-a-calf code into its own subroutine. This function
 # returns a new animal record.
@@ -2569,11 +1998,12 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
                  filetag='', recessives=[], max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
-                 embryo_trials=1, bull_deficit='horned', flambda=25.):
+                 embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
+                 bull_deficit='horned'):
 
     """Main loop for individual simulation scenarios.
 
-    :param scenario: The mating strategy to use in the current scenario ('random'|'toppct'|'pryce').
+    :param scenario: The mating strategy to use in the current scenario ('random'|'trunc'|'pryce').
     :type scenario: string
     :param cow_mean: Average base population cow TBV.
     :type cow_mean: float
@@ -2585,7 +2015,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type polled_diff: float
     :param gens: Total number of generations to run the simulation.
     :type gens: int
-    :param percent: Percent of bulls to use as sires in the toppct scenario.
+    :param percent: Percent of bulls to use as sires in the truncation mating scenario.
     :type percent: float
     :base_bulls: The number of bulls in the base population.
     :type base_bulls: int
@@ -2619,6 +2049,14 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type edit_trials: int
     :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
     :type embryo_trials: int
+    :param embryo_inbreeding: Write a file of coefficients of inbreeding for all possible bull-by-cow matings.
+    :type embryo_inbreeding: boolean
+    :param flambda: Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
+    :type flambda: float
+    :param bull_criterion: Criterion used to select the group of bulls for mating.
+    :type bull_criterion: string
+    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
+    :type bull_deficit: string
     :return: Nothing is returned from this function.
     :rtype: None
     """
@@ -2676,22 +2114,22 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
         # population with no limit on the number of matings allowed. This is a simple
         # example of truncation selection.
-        elif scenario == 'toppct':
+        elif scenario == 'trunc':
             print '\n[run_scenario]: Mating cows using truncation selection at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = toppct_mating(cows,
-                                                               bulls,
-                                                               dead_cows,
-                                                               dead_bulls,
-                                                               generation,
-                                                               gens,
-                                                               recessives,
-                                                               pct=percent,
-                                                               edit_prop=edit_prop,
-                                                               edit_type=edit_type,
-                                                               edit_trials=edit_trials,
-                                                               embryo_trials=embryo_trials,
-                                                               debug=debug)
+            cows, bulls, dead_cows, dead_bulls = truncation_mating(cows,
+                                                                   bulls,
+                                                                   dead_cows,
+                                                                   dead_bulls,
+                                                                   generation,
+                                                                   gens,
+                                                                   recessives,
+                                                                   pct=percent,
+                                                                   edit_prop=edit_prop,
+                                                                   edit_type=edit_type,
+                                                                   edit_trials=edit_trials,
+                                                                   embryo_trials=embryo_trials,
+                                                                   debug=debug)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2707,6 +2145,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               dead_bulls,
                                                               generation,
                                                               gens,
+                                                              filetag,
                                                               recessives,
                                                               max_matings=max_matings,
                                                               base_herds=base_herds,
@@ -2734,10 +2173,11 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               dead_bulls,
                                                               generation,
                                                               gens,
+                                                              filetag,
                                                               recessives,
-                                                              max_matings=max_matings,
-                                                              base_herds=base_herds,
-                                                              debug=debug,
+                                                              max_matings,
+                                                              base_herds,
+                                                              debug,
                                                               penalty=True,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
@@ -2750,24 +2190,53 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'polled':
             print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = polled_mating(cows,
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
                                                               bulls,
                                                               dead_cows,
                                                               dead_bulls,
                                                               generation,
-                                                              gens,
+                                                              generations,
+                                                              filetag,
                                                               recessives,
-                                                              max_matings=max_matings,
-                                                              base_herds=base_herds,
-                                                              debug=debug,
+                                                              max_matings,
+                                                              base_herds,
+                                                              debug,
                                                               penalty=False,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
                                                               edit_type=edit_type,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
+                                                              embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
-                                                              bull_deficit=bull_deficit)
+                                                              bull_criterion='polled',
+                                                              bull_deficit='use_horned')
+
+        # Mate cows to polled bulls whenever they're available.
+        elif scenario == 'polled_r':
+            print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method and accounting for recessives at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
+                                                              bulls,
+                                                              dead_cows,
+                                                              dead_bulls,
+                                                              generation,
+                                                              generations,
+                                                              filetag,
+                                                              recessives,
+                                                              max_matings,
+                                                              base_herds,
+                                                              debug,
+                                                              penalty=True,
+                                                              service_bulls=service_bulls,
+                                                              edit_prop=edit_prop,
+                                                              edit_type=edit_type,
+                                                              edit_trials=edit_trials,
+                                                              embryo_trials=embryo_trials,
+                                                              embryo_inbreeding=embryo_inbreeding,
+                                                              flambda=flambda,
+                                                              bull_criterion='polled',
+                                                              bull_deficit='use_horned')
 
         # The default scenario is random mating.
         else:
@@ -2778,10 +2247,10 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                generation,
                                                                gens,
                                                                recessives,
-                                                               max_matings=max_matings,
-                                                               edit_prop=edit_prop,
-                                                               edit_type=edit_type,
-                                                               debug=debug)
+                                                               max_matings,
+                                                               edit_prop,
+                                                               edit_type,
+                                                               debug)
 
         print
         print '\t\t             \tLC\tLB\tLT\tDC\tDB\tDT'
@@ -2921,28 +2390,39 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
 if __name__ == '__main__':
 
     # Simulation parameters
+
+    # -- Program Control Parameters
+    debug =         True        # Activate (True) or deactivate (False) debugging messages
+    rng_seed =      long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
+                                                        # simulation if we need/want to.
+    embryo_inbreeding = False   # Save file with embryo inbreeding (makes large files!!!)
+    history_freq =  'end'       # Only write history files at the end of the simulation, not every generation.
+    show_recessives = False     # Show recessive frequencies after each round.
+
+
+    # -- Base Population Parameters
     cow_mean =      0.       # Average base population cow TBV.
     genetic_sd =    200.     # Additive genetic SD of the simulated trait.
     bull_diff =     1.5      # Differential between base cows and bulls, in genetic SD
     polled_diff =   1.       # Differential between horned and polled bulls, in genetic SD
     base_bulls =    350      # Initial number of founder bulls in the population
     base_cows =     35000    # Initial number of founder cows in the population
-    service_bulls = 50       # Number of herd bulls to use in each herd each generation.
     base_herds =    200      # Number of herds in the population
+
+
+    # -- Scenario Parameters
+    service_bulls = 50       # Number of herd bulls to use in each herd each generation.
     max_bulls =     500      # Maximum number of live bulls to keep each generation
     max_cows =      100000   # Maximum number of live cows to keep each generation
-    percent =       0.10     # Proportion of bulls to use in the toppct scenario
-    generations =   20       # How long to run the simulation
+    percent =       0.10     # Proportion of bulls to use in the truncation mating scenario
+    generations =   2        # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
-    debug =         True     # Activate (True) or deactivate (False) debugging messages
-    history_freq =  'end'    # Only write history files at the end of the simulation, not every generation.
-    rng_seed = long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
-                                                # simulation if we need/want to.
+    bull_criterion = 'polled'   # How should the bulls be picked?
     bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
 
-    # Parameters related to gene editing. Embryonic death rates and editing failure rates based on the
-    # editing technology used are hard-coded in the edit_genes() function.
+
+    # -- Gene Editing Parameters
     edit_prop =     [0.01, 0.00]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
@@ -2950,13 +2430,14 @@ if __name__ == '__main__':
     edit_trials =   -1             # The number of attempts to edit an embryo successfully (-1 = repeat until success).
     embryo_trials = -1             # The number of attempts to transfer an edited embryo successfully(-1 = repeat until success).
 
+
+    # -- Definition of Recessives in the Population
     # Recessives are stored in a list of lists. The first value in each list is the minor allele frequency in the base
     # population, and the second number is the economic value of the minor allele. If the economic value is $20, that
     # means that the value of an affected homozygote is -$20. The third value in the record indicates if the recessive
     # is lethal (0) or non-lethal (0). The fourth value is a label that is not used for any calculations. The fifth
     # value is  a flag which indicates a gene should be left in its original state (0) or edited (1).
-    #
-    default_recessives = [
+    recessives = [
         [0.0276, 150, 1, 'Brachyspina', 1],
         [0.0192,  40, 1, 'HH1', 1],
         [0.0166,  40, 1, 'HH2', 1],
@@ -2971,119 +2452,37 @@ if __name__ == '__main__':
         [0.0542, -20, 0, 'Red', 0],
     ]
 
+
     # Alternatively, you can read the recessive information from a file.
     #with open('../recessives.config','r') as inf:
     #    default_recessives = ast.literal_eval(inf.read())
-
-    # # First, run the random mating scenario
-    # print '=' * 80
     # recessives = copy.deepcopy(default_recessives)
-    # run_scenario(scenario='random',
-    #              base_bulls=base_bulls,
-    #              base_cows=base_cows,
-    #              service_bulls=service_bulls,
-    #              max_bulls=max_bulls,
-    #              max_cows=max_cows,
-    #              filetag='_horned_p',
-    #              recessives=recessives,
-    #              rng_seed=rng_seed,
-    #              history_freq=history_freq,
-    #              edit_prop=edit_prop,
-    #              edit_type=edit_type,
-    #              edit_trials=edit_trials,
-    #              embryo_trials=embryo_trials)
-    #
-    # # Now run truncation selection, just to introduce some genetic trend.
-    # print '=' * 80
-    # recessives = copy.deepcopy(default_recessives)
-    # run_scenario(scenario='toppct',
-    #              percent=percent,
-    #              base_bulls=base_bulls,
-    #              base_cows=base_cows,
-    #              service_bulls=service_bulls,
-    #              max_bulls=max_bulls,
-    #              max_cows=max_cows,
-    #              filetag='_horned_p',
-    #              recessives=recessives,
-    #              rng_seed=rng_seed,
-    #              history_freq=history_freq,
-    #              edit_prop=edit_prop,
-    #              edit_type=edit_type,
-    #              edit_trials=edit_trials,
-    #              embryo_trials=embryo_trials)
-    #
-    # # This is the real heart of the analysis, applying Pryce's method, which accounts for
-    # # inbreeding but NOT for recessives.
-    # print '=' * 80
-    # recessives = copy.deepcopy(default_recessives)
-    # run_scenario(scenario='pryce',
-    #              percent=percent,
-    #              base_bulls=base_bulls,
-    #              base_cows=base_cows,
-    #              base_herds=base_herds,
-    #              service_bulls=service_bulls,
-    #              max_bulls=max_bulls,
-    #              max_cows=max_cows,
-    #              debug=debug,
-    #              filetag='_horned_p',
-    #              recessives=recessives,
-    #              gens=generations,
-    #              max_matings=max_matings,
-    #              rng_seed=rng_seed,
-    #              history_freq=history_freq,
-    #              edit_prop=edit_prop,
-    #              edit_type=edit_type,
-    #              edit_trials=edit_trials,
-    #              embryo_trials=embryo_trials,
-    #              flambda=flambda)
-
-    # The 'pryce_r' scenario applies Pryce's method, which accounts for inbreeding
-    # and also for recessive effects.
-    print '=' * 80
-    recessives = copy.deepcopy(default_recessives)
-    # run_scenario(scenario='pryce_r',
-    #              percent=percent,
-    #              base_bulls=base_bulls,
-    #              base_cows=base_cows,
-    #              base_herds=base_herds,
-    #              service_bulls=service_bulls,
-    #              max_bulls=max_bulls,
-    #              max_cows=max_cows,
-    #              debug=debug,
-    #              filetag='_crispr',
-    #              recessives=recessives,
-    #              gens=generations,
-    #              max_matings=max_matings,
-    #              rng_seed=rng_seed,
-    #              history_freq=history_freq,
-    #              edit_prop=edit_prop,
-    #              edit_type=edit_type,
-    #              edit_trials=edit_trials,
-    #              embryo_trials=embryo_trials,
-    #              flambda=flambda)
 
     run_scenario(scenario='polled',
                  cow_mean=cow_mean,
                  genetic_sd=genetic_sd,
                  bull_diff=bull_diff,
                  polled_diff=polled_diff,
+                 gens=generations,
                  percent=percent,
                  base_bulls=base_bulls,
                  base_cows=base_cows,
-                 base_herds=base_herds,
                  service_bulls=service_bulls,
+                 base_herds=base_herds,
                  max_bulls=max_bulls,
                  max_cows=max_cows,
                  debug=debug,
-                 filetag='_crispr',
+                 filetag='polled',
                  recessives=recessives,
-                 gens=generations,
                  max_matings=max_matings,
                  rng_seed=rng_seed,
+                 show_recessives=show_recessives,
                  history_freq=history_freq,
                  edit_prop=edit_prop,
                  edit_type=edit_type,
                  edit_trials=edit_trials,
                  embryo_trials=embryo_trials,
-                 bull_deficit=bull_deficit,
-                 flambda=flambda)
+                 embryo_inbreeding=embryo_inbreeding,
+                 flambda=flambda,
+                 bull_criterion=bull_criterion,
+                 bull_deficit=bull_deficit)
