@@ -11,7 +11,6 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import plot, hist
-#import ast
 import copy
 import datetime
 import itertools
@@ -211,9 +210,11 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     # Assume that polled bulls average ~1 SD lower genetic merit than horned bulls, based on average
     # PTA for NM$ of $590 versus $761 (difference of $171) from Spurlock et al., 2014,
     # http://dx.doi.org/10.3168/jds.2013-7746.
+    horned = False
+    horned_loc = -1
     for r in recessives:
         if r[3] == 'Horned':
-            horned == True
+            horned = True
         else:
             horned = False
         if horned:
@@ -900,14 +901,14 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
             if debug:
                 print '\t[polled_mating]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
                       (len(mating_bulls), service_bulls)
-            if bull_deficit == 'horned':
+            if bull_deficit == 'use_horned':
                 herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
             else:
                 herd_bulls = mating_bulls
         else:
             herd_bulls = mating_bulls[0:service_bulls + 1]  # Select 20% at random
     # The default case is 'random'.
-    else:
+    elif bull_criterion == 'random'
         # Sample 20% of the active bulls at random, then sort them on TBV and take the top "service_sires" bulls
         # for use in the herd.
         random.shuffle(bulls)  # Randomly order bulls
@@ -917,6 +918,10 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
             herd_bulls = bulls[0:service_bulls]  # Select service_bulls at random
         else:
             herd_bulls = bulls[0:int(len(bulls) / 5)]  # Select 20% at random
+    else:
+        if debug:
+            print '\t[polled_mating]: Unhandled value of bull_criterion, %s, returning empty list!' % bull_criterion
+        return []
 
     return herd_bulls
 
@@ -1050,8 +1055,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                 # print '\tCow idx : ', bidx, ' (', str(c[0]), ')'
                 calf_id = str(b[0])+'__'+str(c[0])
                 # Set accumulator of \sum P(aa) to 0.
-                if penalty:
-                    paa_sum = 0.
+                paa_sum = 0.
                 # Update the matrix of inbreeding coefficients.
                 f_mat[bidx, cidx] = inbr[calf_id]
                 # Now adjust the PA to account for inbreeding and the economic impacts of the recessives.
@@ -1095,11 +1099,17 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         # Sort bulls on ID in ascending order
         bull_portfolio[h].sort(key=lambda x: x[0])
         cow_id_list = [c[0] for c in cow_portfolio[h]]
-        if len(cow_id_list) > ( service_bulls * max_matings ):
+        if len(cow_id_list) > ( service_bulls * max_matings ) and bull_deficit != 'no_limit':
             print '\t[pryce_mating]: WARNING! There are %s cows in herd %s, but %s service sires limited to %s matings ' \
                 'cannot breed that many cows! Only the first %s cows in the herd will be bred, the other %s will be ' \
                 'left open.' % (len(cow_id_list), h, service_bulls, max_matings, (service_bulls*max_matings),
                                 (len(cow_id_list)-(service_bulls*max_matings)))
+        elif len(cow_id_list) > ( service_bulls * max_matings ) and bull_deficit == 'no_limit':
+            print '\t[pryce_mating]: WARNING! There are %s cows in herd %s, but %s service sires limited to %s matings ' \
+                'cannot breed that many cows! The bull_deficit option is set to \'no_limit\', so the number of matings ' \
+                'allowed for a bull may exceed %s.' % (len(cow_id_list), h, service_bulls, max_matings, max_matings)
+        else:
+            pass
         # Now loop over B to allocate the best matings
         for c in cow_portfolio[h]:
             # What column in b_mat corresponds to cow c?
@@ -1110,7 +1120,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
             # last element in sorted_bulls is the index of the largest element in b_mat[:,cow_loc].
             for bidx in xrange(len(bull_portfolio[h])-1, -1, -1):
                 # Does this bull still have matings available?
-                if matings[bull_portfolio[h][sorted_bulls[bidx]][0]] >= max_matings:
+                if matings[bull_portfolio[h][sorted_bulls[bidx]][0]] >= max_matings and bull_deficit != 'no_limit':
                     pass
                     #print 'Bull %s (%s) already has %s matings.' % (bidx, str(bull_portfolio[h][sorted_bulls[bidx]][0]), matings[bull_portfolio[h][sorted_bulls[bidx]][0]])
                 elif bull_portfolio[h][sorted_bulls[bidx]][6] != 'A':
@@ -2114,7 +2124,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
         # population with no limit on the number of matings allowed. This is a simple
         # example of truncation selection.
-        elif scenario == 'trunc':
+        elif scenario == 'truncation':
             print '\n[run_scenario]: Mating cows using truncation selection at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             cows, bulls, dead_cows, dead_bulls = truncation_mating(cows,
@@ -2313,6 +2323,14 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh = file(outfile, 'w')
     outline = 'scenario           :\t%s\n' % scenario
     ofh.write(outline)
+    outline = 'cow_mean           :\t%s\n' % cow_mean
+    ofh.write(outline)
+    outline = 'genetic_sd         :\t%s\n' % genetic_sd
+    ofh.write(outline)
+    outline = 'bull_diff          :\t%s\n' % bull_diff
+    ofh.write(outline)
+    outline = 'polled_diff        :\t%s\n' % polled_diff
+    ofh.write(outline)
     outline = 'percent            :\t%s\n' % percent
     ofh.write(outline)
     outline = 'base bulls         :\t%s\n' % base_bulls
@@ -2337,6 +2355,10 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'embryo_trials      :\t%s\n' % embryo_trials
     ofh.write(outline)
+    outline = 'embryo_inbreeding  :\t%s\n' % embryo_inbreeding
+    ofh.write(outline)
+    outline = 'show_recessives    :\t%s\n' % show_recessives
+    ofh.write(outline)
     for r in xrange(len(recessives)):
         outline = 'Base MAF %s   :\t%s\n' % (r+1, recessives[r][0])
         ofh.write(outline)
@@ -2351,6 +2373,10 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     outline = 'RNG seed           :\t%s\n' % rng_seed
     ofh.write(outline)
     outline = 'history_freq       :\t%s\n' % history_freq
+    ofh.write(outline)
+    outline = 'bull_deficit:\t%s\n' % bull_deficit
+    ofh.write(outline)
+    outline = 'bull_criterion:\t%s\n' % bull_criterion
     ofh.write(outline)
 
     ofh.close()
