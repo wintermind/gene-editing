@@ -198,7 +198,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 print '\t[setup]: Forcing there to be a carrier for each recessive, i.e., bending Nature to my will.'
                 print '\t[setup]: \tCow %s is a carrier for recessive %s (%s)' % (r, r, recessives[r][3])
                 print '\t[setup]: \tBull %s is a carrier for recessive %s (%s)' % (r, r, recessives[r][3])
-            
+
     # Storage
     cows = []                       # List of live cows in the population
     bulls = []                      # List of live bulls in the population
@@ -234,10 +234,12 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
             if debug:
                 print '[setup]: Error! A cow with ID %s already exists in the ID list!' % c
         c_list = [c, 0, 0, (-1*random.randint(0, 4)), 'F', random.randint(0, base_herds-1), 'A',
-                  '', -1, base_cow_tbv.item(i), 0.0, [], []]
+                  '', -1, base_cow_tbv.item(i), 0.0, [], [], [], []]
         for r in xrange(len(recessives)):
             c_list[-1].append(base_cow_gt.item(i, r))
-            c_list[11].append(0)
+            c_list[11].append(0) # Edit status
+            c_list[12].append(0) # Edit count
+            c_list[13].append(0) # Embryo count
         cows.append(c_list)
         id_list.append(c)
 
@@ -254,10 +256,12 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         else:
             bull_tbv = base_bull_tbv.item(i)
         b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
-                  -1, bull_tbv, 0.0, [], []]
+                  -1, bull_tbv, 0.0, [], [], [], []]
         for r in xrange(len(recessives)):
             b_list[-1].append(base_bull_gt.item(i, r))
-            b_list[11].append(0)
+            b_list[11].append(0)  # Edit status
+            b_list[12].append(0)  # Edit count
+            b_list[13].append(0)  # Embryo count
         bulls.append(b_list)
         id_list.append(b)
 
@@ -1530,17 +1534,15 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
                     elif edit_trials < 0:
                         edit_count = 0
                         while True:
+                            edit_count += 1
                             if bernoulli.rvs(1.-fail_rate[edit_type]):
                                 # 4. Update the animal's genotype
                                 animals[animal][-1][r] = 1
                                 # 5. Update the edit_status list
                                 animals[animal][11][r] = 1
                                 # 6. Update the animal's edit count
-                                animals[animal][12][r] = edit_count + 1
+                                animals[animal][12][r] = edit_count
                                 break
-                            # If the edit failed then we don't change anything for that locus in the embryo.
-                            else:
-                                edit_count += 1
                     #  3a. (iii) edit_trials should never be zero because of the sanity checks, but catch it just in
                     #            case. You know users are...
                     else:
@@ -1568,13 +1570,12 @@ def edit_genes(animals, dead_animals, recessives, generation, edit_prop=0.0, edi
             elif embryo_trials < 0:
                 embryo_count = 0
                 while True:
+                    embryo_count += 1
                     if bernoulli.rvs(1. - death_rate[edit_type]):
                         # 6. Update the animal's ET count
                         for r in range(len(recessives)):
-                            animals[animal][13][r] = embryo_count + 1
+                            animals[animal][13][r] = embryo_count
                         break
-                    else:
-                        embryo_count += 1
             # 3b. (iii) embryo_trials should never be zero because of the sanity checks, but catch it just in
             #           case. You know users are...
             else:
