@@ -912,7 +912,7 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
         else:
             herd_bulls = mating_bulls[0:service_bulls + 1]  # Select 20% at random
     # The default case is 'random'.
-    elif bull_criterion == 'random'
+    elif bull_criterion == 'random':
         # Sample 20% of the active bulls at random, then sort them on TBV and take the top "service_sires" bulls
         # for use in the herd.
         random.shuffle(bulls)  # Randomly order bulls
