@@ -391,7 +391,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
                         print 'bull %s (ID %s) is not alive or does not have available matings' % (bull_to_use, bull_id)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [str(recessives[r][-1]) for r in range(len(recessives))]
+    do_edits = [str(recessives[r][-2]) for r in range(len(recessives))]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -539,7 +539,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
         print '\t[truncation_mating]: %s animals in new bull list' % len(new_bulls)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [str(recessives[r][-1]) for r in range(len(recessives))]
+    do_edits = [str(recessives[r][-2]) for r in range(len(recessives))]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -938,11 +938,11 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
         # bulls, so we're going to use service_bulls as a floor. If there are too few bulls in mating_bulls
         # add a random selection of non-polled bulls to fill out the list.
         if len(mating_bulls) < service_bulls:
-            if debug and polled_sire_count_message:
-                print '\t[get_herd_bulls]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
-                      (len(mating_bulls), service_bulls)
-                polled_sire_count_message = False
             if bull_deficit == 'use_horned':
+                if debug and polled_sire_count_message:
+                    print '\t[get_herd_bulls]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
+                          (len(mating_bulls), service_bulls)
+                    polled_sire_count_message = False
                 herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
             else:
                 herd_bulls = mating_bulls
@@ -1206,7 +1206,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         print '\t\t[pryce_mating]: %s animals in new bull list' % len(new_bulls)
 
     # If gene editing is going to happen, it happens here
-    if '1' in [str(recessives[r][-1]) for r in range(len(recessives))]:
+    if '1' in [str(recessives[r][-2]) for r in range(len(recessives))]:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
                                                             recessives, generation, edit_prop[0],
@@ -1476,7 +1476,6 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
     """
 
     if debug:
-        print '\t[edit_genes]: animals in list: %s' % len(animals)
         print '\t[edit_genes]: Parameters = '
         print '\t[edit_genes]:     edit_prop = %s' % edit_prop
         print '\t[edit_genes]:     edit_type = %s' % edit_type
@@ -1498,12 +1497,14 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
     # see piglet birth rates from Table 1 in Lillico et al. (2013).
     # death_rate = {'Z': 0.92, 'T': 0.88, 'C': 0.79, 'P': 0.0}
     death_rate = {'A': {'Z': 0.92, 'T': 0.88, 'C': 0.79, 'P': 0.0},
-                  'D': {'Z': 0.46, 'T': 0.44, 'C': 0.39, 'P': 0.0},}
+                  'D': {'Z': 0.46, 'T': 0.44, 'C': 0.39, 'P': 0.0},
+                  'O': {'Z': 0.92, 'T': 0.88, 'C': 0.79, 'P': 0.0},}
     # CRISPR editing failure rates are from paragraph 5 of Hai et al. (2014). For ZFN/TALEN editing failure rates
     # see "Edited (% of born)" from Table 1 in Lillico et al. (2013).
     # fail_rate = {'Z': 0.89, 'T': 0.79, 'C': 0.37, 'P': 0.0}
     fail_rate = {'A': {'Z': 0.89, 'T': 0.79, 'C': 0.37, 'P': 0.0},
-                  'D': {'Z': 0.45, 'T': 0.40, 'C': 0.19, 'P': 0.0},}
+                 'D': {'Z': 0.45, 'T': 0.40, 'C': 0.19, 'P': 0.0},
+                 'O': {'Z': 0.89, 'T': 0.79, 'C': 0.37, 'P': 0.0},}
 
     # Sanity checks on inputs
     if edit_prop < 0.0 or edit_prop > 1.0:
@@ -1532,7 +1533,6 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
               'Using F instead.' % edit_sex
         edit_sex = 'F'
 
-    #
     if edit_sex == 'M':
         animals = bulls
         dead_animals = dead_bulls
@@ -1589,7 +1589,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                     #         will be carried out. If there is no success before the
                     #         final trial then the editing process fails.
                     if edit_trials > 0:
-                        outcomes = bernoulli.rvs(1.-fail_rate[r[-1]][edit_type], size=edit_trials)
+                        outcomes = bernoulli.rvs(1.-fail_rate[recessives[r][-1]][edit_type], size=edit_trials)
                         if outcomes.any():
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
@@ -1604,7 +1604,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                         edit_count = 0
                         while True:
                             edit_count += 1
-                            if bernoulli.rvs(1.-fail_rate[r[-1]][edit_type]):
+                            if bernoulli.rvs(1.-fail_rate[recessives[r][-1]][edit_type]):
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
                                 # 5. Update the edit_status list
@@ -1622,7 +1622,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 #         and move it to the dead animals list. If edit_trials > 0 then only a fixed number of trials
                 #         will be carried out. If there is no success before the final trial then the editing process
                 #         fails.
-                outcomes = bernoulli.rvs(1. - death_rate[r[-1]][edit_type], size=embryo_trials)
+                outcomes = bernoulli.rvs(1. - death_rate[recessives[r][-1]][edit_type], size=embryo_trials)
                 if not outcomes.any():
                     ed_animal[6] = 'D'                # The animal is dead
                     ed_animal[7] = 'G'                # Because of gene editing
@@ -1640,7 +1640,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 embryo_count = 0
                 while True:
                     embryo_count += 1
-                    if bernoulli.rvs(1. - death_rate[r[-1]][edit_type]):
+                    if bernoulli.rvs(1. - death_rate[recessives[r][-1]][edit_type]):
                         # 6. Update the animal's ET count
                         for r in range(len(recessives)):
                             ed_animal[13][r] = embryo_count
@@ -1655,6 +1655,13 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
 
             # Add the new, edited animal to the population
             animals.append(ed_animal)
+            if debug:
+                if edit_sex == 'M':
+                    print "[edit_gene]: A new, edited bull, %s, was added to the bulls list!" % \
+                        ed_animal[0]
+                else:
+                    print "[edit_gene]: A new, edited cow, %s, was added to the cows list!" % \
+                        ed_animal[0]
 
     # 6. Sort the list on animal ID in ascending order
     animals.sort(key=lambda x: x[0])
@@ -2544,7 +2551,8 @@ if __name__ == '__main__':
     # means that the value of an affected homozygote is -$20. The third value in the record indicates if the recessive
     # is lethal (0) or non-lethal (0). The fourth value is a label that is not used for any calculations. The fifth
     # value is  a flag which indicates a gene should be left in its original state (0) or edited (1). The sixth value
-    # indicates the type of change ("D" = deactivation/knock-out, "A" = addition/insertion) needed to edit the allele.
+    # indicates the type of change ("D" = deactivation/knock-out, "A" = addition/insertion, "O" = use the same values
+    # as pre-August 30 versions of the program) needed to edit the allele.
     recessives = [
         [0.0276, 150, 1, 'Brachyspina', 1, 'A'],
         [0.0192,  40, 1, 'HH1', 1, 'A'],
@@ -2581,7 +2589,7 @@ if __name__ == '__main__':
                  max_bulls=max_bulls,
                  max_cows=max_cows,
                  debug=debug,
-                 filetag='polled',
+                 filetag='_testing',
                  recessives=recessives,
                  max_matings=max_matings,
                  rng_seed=rng_seed,
