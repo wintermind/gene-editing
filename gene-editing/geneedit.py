@@ -250,7 +250,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         c_list = [c, 0, 0, (-1*random.randint(0, 4)), 'F', random.randint(0, base_herds-1), 'A',
                   '', -1, base_cow_tbv.item(i), 0.0, [], [], [], []]
         for r in xrange(len(recessives)):
-            c_list[-1].append(base_cow_gt.item(i, r))
+            c_list[-1].append(int(base_cow_gt.item(i, r)))
             c_list[11].append(0) # Edit status
             c_list[12].append(0) # Edit count
             c_list[13].append(0) # Embryo count
@@ -272,7 +272,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
                   -1, bull_tbv, 0.0, [], [], [], []]
         for r in xrange(len(recessives)):
-            b_list[-1].append(base_bull_gt.item(i, r))
+            b_list[-1].append(int(base_bull_gt.item(i, r)))
             b_list[11].append(0)  # Edit status
             b_list[12].append(0)  # Edit count
             b_list[13].append(0)  # Embryo count
@@ -400,7 +400,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
                                                             edit_sex='M', debug=debug)
         if edit_prop[1] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
-                                                            recessives, generation, edit_prop[0],
+                                                            recessives, generation, edit_prop[1],
                                                             edit_type, edit_trials, embryo_trials,
                                                             edit_sex='F', debug=debug)
     # End of gene editing section
@@ -548,7 +548,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
                                                             edit_sex='M', debug=debug)
         if edit_prop[1] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
-                                                            recessives, generation, edit_prop[0],
+                                                            recessives, generation, edit_prop[1],
                                                             edit_type, edit_trials, embryo_trials,
                                                             edit_sex='F', debug=debug)
     # End of gene editing section
@@ -1214,7 +1214,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                                                             edit_sex='M', debug=debug)
         if edit_prop[1] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
-                                                            recessives, generation, edit_prop[0],
+                                                            recessives, generation, edit_prop[1],
                                                             edit_type, edit_trials, embryo_trials,
                                                             edit_sex='F', debug=debug)
     # End of gene editing section
@@ -1509,7 +1509,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
     # Sanity checks on inputs
     if edit_prop < 0.0 or edit_prop > 1.0:
         print '\t[edit_genes]: edit_prop is out of range, %s, which should be [0.0, 1.0]. Using 0.01 ' \
-              'instead.' % edit_prop
+              'instead.' % edit_prop[p]
         edit_prop = 0.01
     if edit_type not in ['Z','T','C', 'P']:
         print '\t[edit_genes]: edit_type has a value of %s, but should be Z (zinc finger nuclease), ' \
@@ -1575,6 +1575,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
             ed_animal = copy.deepcopy(animals[animal])
             # Give the animal a new ID
             next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
+            # print "[edit_genes]: Next ID is: %s" % next_id
             ed_animal[0] = next_id
             # Update the birth year
             ed_animal[3] = generation
@@ -1651,17 +1652,18 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 print "[edit_genes]: embryo_trials should never be 0, skipping ET step!"
 
             # Now we have to remove the dead animals from the live animals list
-            #animals[:] = [a for a in animals if a[6] == 'A']
+            # animals[:] = [a for a in animals if a[6] == 'A']
 
             # Add the new, edited animal to the population
+            ed_animal[7] = 'G'  # Animal created by gene editing
             animals.append(ed_animal)
-            if debug:
-                if edit_sex == 'M':
-                    print "[edit_gene]: A new, edited bull, %s, was added to the bulls list!" % \
-                        ed_animal[0]
-                else:
-                    print "[edit_gene]: A new, edited cow, %s, was added to the cows list!" % \
-                        ed_animal[0]
+            # if debug:
+            #     if edit_sex == 'M':
+            #         print "[edit_gene]: A new, edited bull, %s, was added to the bulls list!" % \
+            #             ed_animal[0]
+            #     else:
+            #         print "[edit_gene]: A new, edited cow, %s, was added to the cows list!" % \
+            #             ed_animal[0]
 
     # 6. Sort the list on animal ID in ascending order
     animals.sort(key=lambda x: x[0])
@@ -2301,8 +2303,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
-                                                              bull_criterion='polled',
-                                                              bull_deficit='use_horned')
+                                                              bull_criterion=bull_criterion,
+                                                              bull_deficit=bull_deficit)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
@@ -2327,8 +2329,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
-                                                              bull_criterion='polled',
-                                                              bull_deficit='use_horned')
+                                                              bull_criterion=bull_criterion,
+                                                              bull_deficit=bull_deficit)
 
         # The default scenario is random mating.
         else:
@@ -2507,8 +2509,9 @@ if __name__ == '__main__':
 
     # -- Program Control Parameters
     debug =         True        # Activate (True) or deactivate (False) debugging messages
-    rng_seed =      long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
+    #rng_seed =      long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
                                                         # simulation if we need/want to.
+    rng_seed = 419
     embryo_inbreeding = False   # Save file with embryo inbreeding (makes large files!!!)
     history_freq =  'end'       # Only write history files at the end of the simulation, not every generation.
     show_recessives = False     # Show recessive frequencies after each round.
@@ -2537,7 +2540,7 @@ if __name__ == '__main__':
 
 
     # -- Gene Editing Parameters
-    edit_prop =     [0.01, 0.00]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
+    edit_prop =     [0.10, 0.01]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
                                    # the first value is for males and the second for females.
     edit_type =     'C'            # The type of tool used to edit genes -- 'Z' = ZFN, 'T' = TALEN,
                                    # 'C' = CRISPR, 'P' = perfect (no failures/only successes).
