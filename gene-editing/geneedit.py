@@ -37,11 +37,15 @@ import types
 #
 # + Add a new attribute to traits definitions to indicate if an edit is a knock-out (deletion) or an
 #   insertion/modification. Success rates are much higher for the former than the latter.
+#
+# + Convert recessives to a dictionary
+#
+# + Convert animal records to dictionaries
 ###
 
 
 def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=1., base_bulls=500, base_cows=2500,
-                           base_herds=100, force_carriers=True, force_best=True, recessives=[], check_tbv=False,
+                           base_herds=100, force_carriers=True, force_best=True, recessives={}, check_tbv=False,
                            rng_seed=None, debug=True):
 
     """Setup the simulation and create the base population.
@@ -64,8 +68,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     :type force_carriers: bool
     :param force_best: (optional) Boolean. Force one carrier of each breed to have a TBV 4 SD above the mean.
     :type force_best: bool
-    :param recessives: List of recessive alleles in the population.
-    :type recessives: list
+    :param recessives: Dictionary of recessive alleles in the population.
+    :type recessives: dictionary
     :param check_tbv: (optional) Boolean. Plot histograms of sire and dam TBV in the base population.
     :type check_tbv: bool
     :param rng_seed: (optional) Seed used for the random number generator.
@@ -112,8 +116,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     # of the simulation.
     freq_hist = {}
     freq_hist[0] = []
-    for r in recessives:
-        freq_hist[0].append(r[0])
+    for rk, rv in recessives.iteritems():
+        freq_hist[0].append(rv['frequency'])
      
     # Make the recessives. This is a little tricky. We know the minor
     # allele frequency in the base population, but we're going to simulate
@@ -131,17 +135,19 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     # Initialize an array of zeros that will be filled with genotypes
     base_cow_gt = np.zeros((base_cows, len(recessives)))
     base_bull_gt = np.zeros((base_bulls, len(recessives)))
-    for r in xrange(len(recessives)):
+    for rk, rv in recessives.iteritems():
+        # Get the location of the recessive in the dictionary
+        r = recessives.keys().index(rk)
         # Get the MAF for the current recessive
-        r_freq = recessives[r][0]
+        r_freq = rv['frequency']
         # The recessive is a lethal
-        if recessives[r][2] == 1:
+        if rv['lethal'] == 1:
             # Compute the frequency of the AA and Aa genotypes
             denom = (1. - r_freq)**2 + (2 * r_freq * (1. - r_freq))
             f_dom = (1. - r_freq)**2 / denom
             f_het = (2 * r_freq * (1. - r_freq)) / denom
             print 'This recessive is ***LETHAL***'
-            print 'Recessive %s (%s), generation %s:' % (r, recessives[r][3], generation)
+            print 'Recessive %s (%s), generation %s:' % (r, rk, generation)
             print '\tp = %s' % (1. - r_freq)
             print '\tq = %s' % r_freq
             print '\tf(AA) = %s' % f_dom
@@ -159,8 +165,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 base_cow_gt[r, r] = 0
                 base_bull_gt[r, r] = 0
                 print '\t[create_base_population]: Forcing carriers to bend Nature to my will...'
-                print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, recessives[r][3], r)
-                print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, recessives[r][3], r)
+                print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, rk, r)
+                print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, rk, r)
         # The recessive is NOT lethal
         else:
             # Compute the frequency of the AA and Aa genotypes
@@ -168,7 +174,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
             f_het = (2 * r_freq * (1. - r_freq))
             f_rec = r_freq**2
             print 'This recessive is ***NOT LETHAL***'
-            print 'Recessive %s (%s), generation %s:' % (r, recessives[r][3], generation)
+            print 'Recessive %s (%s), generation %s:' % (r, rk, generation)
             print '\tp = %s' % (1. - r_freq)
             print '\tq = %s' % r_freq
             print '\tf(AA) = %s' % f_dom
@@ -210,8 +216,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 base_cow_gt[r, r] = 0
                 base_bull_gt[r, r] = 0
                 print '\t[create_base_population]: Forcing there to be a carrier for each recessive, i.e., bending Nature to my will.'
-                print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, r, recessives[r][3])
-                print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, r, recessives[r][3])
+                print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, r, rk)
+                print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, r, rk)
 
     # Storage
     cows = []                       # List of live cows in the population
@@ -224,15 +230,12 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     # Assume that polled bulls average ~1 SD lower genetic merit than horned bulls, based on average
     # PTA for NM$ of $590 versus $761 (difference of $171) from Spurlock et al., 2014,
     # http://dx.doi.org/10.3168/jds.2013-7746.
-    horned = False
-    horned_loc = -1
-    for r in recessives:
-        if r[3] == 'Horned':
-            horned = True
-        else:
-            horned = False
-        if horned:
-            horned_loc = [r[3] for r in recessives].index('Horned')
+    if 'Horned' in recessives.keys():
+        horned = True
+        horned_loc = recessives.keys().index('Horned')
+    else:
+        horned = False
+        horned_loc = -1
 
     # Add animals to the base cow list.
     if debug:
@@ -248,12 +251,11 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
             if debug:
                 print '[create_base_population]: Error! A cow with ID %s already exists in the ID list!' % c
         c_list = [c, 0, 0, (-1*random.randint(0, 4)), 'F', random.randint(0, base_herds-1), 'A',
-                  '', -1, base_cow_tbv.item(i), 0.0, [], [], [], []]
-        for r in xrange(len(recessives)):
-            c_list[-1].append(int(base_cow_gt.item(i, r)))
+                  '', -1, base_cow_tbv.item(i), 0.0, [], [], 0, []]
+        for rk in recessives.keys():
+            c_list[-1].append(int(base_cow_gt.item(i, recessives.keys().index(rk))))
             c_list[11].append(0) # Edit status
             c_list[12].append(0) # Edit count
-            c_list[13].append(0) # Embryo count
         cows.append(c_list)
         id_list.append(c)
 
@@ -270,12 +272,11 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         else:
             bull_tbv = base_bull_tbv.item(i)
         b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
-                  -1, bull_tbv, 0.0, [], [], [], []]
-        for r in xrange(len(recessives)):
-            b_list[-1].append(int(base_bull_gt.item(i, r)))
+                  -1, bull_tbv, 0.0, [], [], 0, []]
+        for rk in recessives.keys():
+            b_list[-1].append(int(base_bull_gt.item(i, recessives.keys().index(rk))))
             b_list[11].append(0)  # Edit status
             b_list[12].append(0)  # Edit count
-            b_list[13].append(0)  # Embryo count
         bulls.append(b_list)
         id_list.append(b)
 
@@ -320,8 +321,8 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
     :type generation: int
     :param generations: The total number of generations in the simulation.
     :type generations: int
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param max_matings: The maximum number of matings permitted for each bull.
     :type max_matings: int
     :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
@@ -402,7 +403,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [str(recessives[r][-2]) for r in range(len(recessives))]
+    do_edits = [rv['lethal'] for rv in recessives.values()]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -457,8 +458,8 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
     :type generation: int
     :param generations: The total number of generations in the simulation.
     :type generations: int
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param pct: The proportion of bulls to retain for mating.
     :type pct: float
     :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
@@ -551,7 +552,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [str(recessives[r][-2]) for r in range(len(recessives))]
+    do_edits = [rv['lethal'] for rv in recessives.values()]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -766,9 +767,9 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
     # Write the pedigree to a file.
     if len(filetag) == 0:
-        pedfile = 'compute_inbreeding_%s.txt' % generation
+        pedfile = 'compute_inbreeding%s.txt' % generation
     else:
-        pedfile = 'compute_inbreeding_%s_%s.txt' % (filetag, generation)
+        pedfile = 'compute_inbreeding%s_%s.txt' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Writing pedigree to %s at %s' % \
               (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -806,9 +807,9 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             logfile = 'compute_inbreeding_%s.log' % generation
     else:
         if penalty:
-            logfile = 'compute_inbreeding_r_%s_%s.log' % (filetag, generation)
+            logfile = 'compute_inbreeding_r%s_%s.log' % (filetag, generation)
         else:
-            logfile = 'compute_inbreeding_%s_%s.log' % (filetag, generation)
+            logfile = 'compute_inbreeding%s_%s.log' % (filetag, generation)
     # Several methods can be used:
     # 1 - recursive as in Aguilar & Misztal, 2008 (default)
     # 2 - recursive but with coefficients store in memory, faster with large number of
@@ -844,7 +845,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     if len(filetag) == 0:
         coifile = 'compute_inbreeding_%s.txt.solinb' % generation
     else:
-        coifile = 'compute_inbreeding_%s_%s.txt.solinb' % (filetag, generation)
+        coifile = 'compute_inbreeding%s_%s.txt.solinb' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Putting coefficients of inbreeding from %s.solinb in a dictionary at %s' \
             % (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -872,15 +873,15 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
         if generation != generations:
             if len(filetag) > 0:
                 if penalty:
-                    os.remove('compute_inbreeding_r_%s_%s.txt' % (filetag, generation))
-                    os.remove('compute_inbreeding_r_%s_%s.txt.errors' % (filetag, generation))
-                    os.remove('compute_inbreeding_r_%s_%s.txt.inbavgs' % (filetag, generation))
-                    os.remove('compute_inbreeding_r_%s_%s.txt.solinb' % (filetag, generation))
+                    os.remove('compute_inbreeding_r%s_%s.txt' % (filetag, generation))
+                    os.remove('compute_inbreeding_r%s_%s.txt.errors' % (filetag, generation))
+                    os.remove('compute_inbreeding_r%s_%s.txt.inbavgs' % (filetag, generation))
+                    os.remove('compute_inbreeding_r%s_%s.txt.solinb' % (filetag, generation))
                 else:
-                    os.remove('compute_inbreeding_%s_%s.txt' % (filetag, generation))
-                    os.remove('compute_inbreeding_%s_%s.txt.errors' % (filetag, generation))
-                    os.remove('compute_inbreeding_%s_%s.txt.inbavgs' % (filetag, generation))
-                    os.remove('compute_inbreeding_%s_%s.txt.solinb' % (filetag, generation))
+                    os.remove('compute_inbreeding%s_%s.txt' % (filetag, generation))
+                    os.remove('compute_inbreeding%s_%s.txt.errors' % (filetag, generation))
+                    os.remove('compute_inbreeding%s_%s.txt.inbavgs' % (filetag, generation))
+                    os.remove('compute_inbreeding%s_%s.txt.solinb' % (filetag, generation))
             else:
                 if penalty:
                     os.remove('compute_inbreeding_r_%s.txt' % (generation))
@@ -906,8 +907,8 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
 
     :param bulls: A list of live bull records.
     :type bulls: list
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param bull_criterion: Criterion used to select the group of bulls for mating.
     :type bull_criterion: string
     :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
@@ -996,8 +997,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :type generations: int
     :param filetag: Prefix used for filenames to tell scenarios apart.
     :type filetag: string
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param max_matings: The maximum number of matings permitted for each bull
     :type max_matings: int
     :param base_herds: Number of herds in the population.
@@ -1107,13 +1108,14 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                 # Adjust the PA of the mating to account for recessives on. If the flag is not set then
                 # results should be similar to those of Pryce et al. (2012).
                 if penalty:
-                    for r in xrange(len(recessives)):
+                    for rk, rv in recessives.iteritems():
+                        r = recessives.keys().index(rk)
                         # What are the parent genotypes?
                         b_gt = b[-1][r]
                         c_gt = c[-1][r]
                         if b_gt == -1 and c_gt == -1:           # aa genotypes
                             # Affected calf, adjust the PA by the full value of an aa calf.
-                            b_mat[bidx, cidx] -= recessives[r][1]
+                            b_mat[bidx, cidx] -= rk['value']
                             paa_sum += 1.
                         elif b_gt == 1 and c_gt == 1:           # AA genotypes
                             # Calf cannot be aa, no adjustment to the PA.
@@ -1122,7 +1124,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                             # There is a 1/4 chance of having an affected calf,
                             # so the PA is adjusted by 1/4 of the "value" of an
                             # aa calf.
-                            b_mat[bidx, cidx] -= (0.25 * recessives[r][1])
+                            b_mat[bidx, cidx] -= (0.25 * rk['value'])
                             paa_sum += 0.25
                     # Store the inbreeding/P(aa) info for later. We're saving only calves because they're the animals
                     # for which we sum the P(aa) to make mating decisions.
@@ -1221,7 +1223,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    if '1' in [str(recessives[r][-2]) for r in range(len(recessives))]:
+    if '1' in [rv['lethal'] for rv in recessives.values()]:
         if edit_prop[0] > 0.0:
             if debug:
                 print '\t\t[pryce_mating]: About to edit bulls. Next ID = %s' % \
@@ -1257,8 +1259,8 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
     :type animal_list: list
     :param get_recessive: Boolean. Activate/deactivate debugging messages.
     :type get_recessive: int
-    :param recessives: List of recessives in the population.
-    :type recessives: list
+    :param recessives: dictionary of recessives in the population.
+    :type recessives: dictionary
     :param copies: Boolean. Copies of the minor allele in selected animals (4 = A\_ and 5 = a\_).
     :type copies: int
     :param debug: Boolean. Activate/deactivate debugging messages.
@@ -1276,7 +1278,7 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
         return []
 
     # Check to see if the requested recessive exists.
-    if not get_recessive in [row[3] for row in recessives]:
+    if not get_recessive in recessives.keys():
         print '\t[fetch_recessives]: The requested recessive, %s, is not in the list of recessives!' % \
               ( get_recessive )
         return []
@@ -1284,7 +1286,7 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
     # Make sure the count of copies of the minor allele is valid.
     if copies not in [0,1,2,4,5]:
         print '\t[fetch_recessives]: The number of copies, %s, is not 0, 1, 2, 4, or 5!' % \
-              ( copies )
+              (copies)
         return []
 
     # In the recessives array, a 1 indicates an AA, 0 is an Aa, and a -1 is aa.
@@ -1292,7 +1294,7 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
     # aa & Aa.
 
     # Where in the recessives list is the one we want?
-    rec_loc = [row[3] for row in recessives].index(get_recessive)
+    rec_loc = recessives.keys().index(get_recessive)
 
     for animal in animal_list:
         # Add AA animals if 0 copies of minor allele requested
@@ -1336,8 +1338,8 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
     :type sire: int
     :param dam: The mother of the new animal.
     :type dam: int
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param calf_id: ID of the calf to create.
     :type calf_id: int
     :param generation: The current generation in the simulation.
@@ -1381,7 +1383,8 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
     c_gt = dam[-1]
     b_gt = sire[-1]
     edit_status = []                            # Indicates if an animal has been gene edited
-    for r in xrange(len(recessives)):
+    for rk, rv in recessives.iteritems():
+        r = recessives.keys().index(rk)
         # The simplest way to do this is to draw a gamete from each parent and
         # construct the calf's genotype from there. In the recessives array, a
         # 1 indicates an AA, 0 is an Aa, and a -1 is aa.
@@ -1413,7 +1416,7 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
         # This mating produces only 'aa' genotypes.
         if s_allele == 'a' and d_allele == 'a':
             # The recessive is lethal.
-            if recessives[r][2] == 1: 
+            if rv['lethal'] == 1:
                 calf[6] = 'D'            # The calf is dead
                 calf[7] = 'R'            # Because of a recessive lethal
                 calf[8] = generation     # In utero
@@ -1428,8 +1431,8 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
             if random.randint(1, 100001) == 1:
                 if debug:
                     print '\t[create_new_calf]: A mutation in recessive %s (%s) happened when ' \
-                        'bull %s was mated to cow %s to produce animal %s!' % (r, recessives[r][3],
-                        sire[0], dam[0], calf_id)
+                        'bull %s was mated to cow %s to produce animal %s!' % (r, rk, sire[0],
+                                                                               dam[0], calf_id)
                 calf[-1].append(0)
             else:
                 calf[-1].append(1)
@@ -1465,8 +1468,8 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
     :type dead_cows: list
     :param dead_bulls: A list of dead bull records.
     :type dead_bulls: list
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param generation: The current generation in the simulation.
     :type generation: int
     :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
@@ -1554,6 +1557,10 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
         animals = cows
         dead_animals = dead_cows
 
+    # We don't want this down in the animal loop because it's slow to keep
+    # calling it over and over again.
+    next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
+
     # Do the actual gene editing. Here's how that works.
     #     0. Sort the animals on TBV
     # For each recessive to be edited:
@@ -1588,13 +1595,14 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
             # a zygote created by SCNT.
             ed_animal = copy.deepcopy(animals[animal])
             # Give the animal a new ID
-            next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
+            #next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
             # print "[edit_genes]: Next ID for the %s-th animal to be edited is %s." % (animal, next_id)
             ed_animal[0] = next_id
             # Update the birth year
             ed_animal[3] = generation
             # For each recessive:
-            for r in range(len(recessives)):
+            for rk, rv in recessives.iteritems():
+                r = recessives.keys().index(rk)
                 # 2. Do the edit for Aa and aa genotypes, where
                 #    1 is an AA, 0 is an Aa, and a -1 is aa.
                 if ed_animal[-1][r] in [0, -1]:
@@ -1604,7 +1612,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                     #         will be carried out. If there is no success before the
                     #         final trial then the editing process fails.
                     if edit_trials > 0:
-                        outcomes = bernoulli.rvs(1.-fail_rate[recessives[r][-1]][edit_type], size=edit_trials)
+                        outcomes = bernoulli.rvs(1.-fail_rate[rv['edit_type']], size=edit_trials)
                         if outcomes.any():
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
@@ -1619,7 +1627,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                         edit_count = 0
                         while True:
                             edit_count += 1
-                            if bernoulli.rvs(1.-fail_rate[recessives[r][-1]][edit_type]):
+                            if bernoulli.rvs(1.-fail_rate[rv['edit_type']]):
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
                                 # 5. Update the edit_status list
@@ -1637,7 +1645,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 #         and move it to the dead animals list. If edit_trials > 0 then only a fixed number of trials
                 #         will be carried out. If there is no success before the final trial then the editing process
                 #         fails.
-                outcomes = bernoulli.rvs(1. - death_rate[recessives[r][-1]][edit_type], size=embryo_trials)
+                outcomes = bernoulli.rvs(1. - death_rate[rv[edit_type]], size=embryo_trials)
                 if not outcomes.any():
                     ed_animal[6] = 'D'                # The animal is dead
                     ed_animal[7] = 'G'                # Because of gene editing
@@ -1648,8 +1656,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                         dead_cows.append(ed_animal)
                 else:
                     # 6. Update the animal's ET count
-                    for r in range(len(recessives)):
-                        ed_animal[13][r] = np.min(np.nonzero(outcomes)) + 1
+                    ed_animal[13] = np.min(np.nonzero(outcomes)) + 1
             # 3b. (ii) If the embryo died then we need to update the cause and time of death,
             #          and move it to the dead animals list. If edit_trials < 0 then then the editing process will
             #          be repeated until a success occurs. The ET operation never adds a dead embryo to the dead
@@ -1658,10 +1665,9 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 embryo_count = 0
                 while True:
                     embryo_count += 1
-                    if bernoulli.rvs(1. - death_rate[recessives[r][-1]][edit_type]):
+                    if bernoulli.rvs(1. - death_rate[rv[edit_type]]):
                         # 6. Update the animal's ET count
-                        for r in range(len(recessives)):
-                            ed_animal[13][r] = embryo_count
+                        ed_animal[13] = embryo_count
                         break
             # 3b. (iii) embryo_trials should never be zero because of the sanity checks, but catch it just in
             #           case. You know users are...
@@ -1678,6 +1684,8 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 bulls.append(ed_animal)
             else:
                 cows.append(ed_animal)
+
+            next_id += 1
 
             # if debug:
             #     print "\t[edit_genes]: Edited ID:   %s" % ed_animal
@@ -1701,6 +1709,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
 
     # 7. Return the lists
     return cows, bulls, dead_cows, dead_bulls
+
 
 def cull_bulls(bulls, dead_bulls, generation, max_bulls=250, debug=False):
 
@@ -1955,8 +1964,8 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
     :type bulls: list
     :param generation: The current generation in the simulation.
     :type generation: int
-    :param recessives: A list of recessives in the population.
-    :type recessives: list
+    :param recessives: A dictionary of recessives in the population.
+    :type recessives: dictionary
     :param freq_hist: Minor allele frequencies for each generation.
     :type freq_hist: dictionary
     :param show_recessives: Boolean. Print summary information for each recessive.
@@ -1966,11 +1975,11 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
     """
 
     minor_allele_counts = []
-    for r in recessives:
+    for rk in recessives.keys():
         minor_allele_counts.append(0)
     # Loop over the bulls list and count
     for b in bulls:
-        for r in xrange(len(recessives)):
+        for r in xrange(len(recessives.keys())):
             # A genotype code of 0 is a heterozygote (Aa), and a 1 is a homozygote (AA)
             if b[-1][r] == 0:
                 minor_allele_counts[r] += 1
@@ -1980,7 +1989,7 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
                 minor_allele_counts[r] += 2
     # Loop over the cows list and count
     for c in cows:
-        for r in xrange(len(recessives)):
+        for r in xrange(len(recessives.keys())):
             # A genotype code of 0 is a heterozygote (Aa), and a 1 is a homozygote (AA)
             if c[-1][r] == 0:
                 minor_allele_counts[r] += 1
@@ -1991,22 +2000,23 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
     # Now we have to calculate the MAF for each recessive
     total_alleles = 2 * (len(cows) + len(bulls))
     freq_hist[generation] = []
-    for r in xrange(len(recessives)):
+    for rk, rv in recessives.iteritems():
+        r = recessives.keys().index(rk)
         # r_freq is the frequency of the minor allele (a)
         r_freq = float(minor_allele_counts[r]) / float(total_alleles)
         # Is the recessive lethal? Yes?
-        if recessives[r][2] == 1:
+        if rv['lethal'] == 1:
             # Compute the frequency of the AA and Aa genotypes
             denom = (1. - r_freq)**2 + (2 * r_freq * (1. - r_freq))
             f_dom = (1. - r_freq)**2 / denom
             f_het = (2 * r_freq * (1. - r_freq)) / denom
             if show_recessives:
                 print
-                print '\tRecessive %s (%s), generation %s:' % (r, recessives[r][3], generation)
+                print '\tRecessive %s (%s), generation %s:' % (r, rk, generation)
                 print '\t\tminor alleles = %s\t\ttotal alleles = %s' % (minor_allele_counts[r], total_alleles)
                 print '\t\tp = %s\t\tq = %s' % ((1. - r_freq), r_freq)
-                print '\t\t  = %s\t\t  = %s' % ((1. - r_freq) - (1. - recessives[r-1][0]),
-                                                r_freq - recessives[r-1][0])
+                print '\t\t  = %s\t\t  = %s' % ((1. - r_freq) - (1. - rv['frequency']),
+                                                r_freq - rv['frequency'])
                 print '\t\tf(AA) = %s\t\tf(Aa) = %s' % (f_dom, f_het)
         # Well, okay, so it's not.
         else:
@@ -2017,15 +2027,15 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
             if show_recessives:
                 print
                 print '\tThis recessive is ***NOT LETHAL***'
-                print '\tRecessive %s (%s), generation %s:' % (r, recessives[r][3], generation)
+                print '\tRecessive %s (%s), generation %s:' % (r, rk, generation)
                 print '\t\tminor alleles = %s\t\ttotal alleles = %s' % (minor_allele_counts[r], total_alleles)
                 print '\t\tp = %s\t\tq = %s' % ((1. - r_freq), r_freq)
-                print '\t\t  = %s\t\t  = %s' % ((1. - r_freq) - (1. - recessives[r-1][0]),
-                                                r_freq - recessives[r-1][0])
+                print '\t\t  = %s\t\t  = %s' % ((1. - r_freq) - (1. - rv['frequency']),
+                                                r_freq - rv['frequency'])
                 print '\t\tf(AA) = %s\t\tf(Aa) = %s' % (f_dom, f_het)
                 print '\t\tf(aa) = %s' % f_rec
         # Finally, update the recessives and history tables
-        recessives[r][0] = r_freq
+        recessives[rk]['frequency'] = r_freq
         freq_hist[generation].append(r_freq)
     return recessives, freq_hist
 
@@ -2055,10 +2065,10 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
     """
 
     # First, write the animal history files.
-    cowfile = 'cows_history_%s_%s.txt' % (filetag, generation)
-    deadcowfile = 'dead_cows_history_%s_%s.txt' % (filetag, generation)
-    bullfile = 'bulls_history_%s_%s.txt' % (filetag, generation)
-    deadbullfile = 'dead_bulls_history_%s_%s.txt' % (filetag, generation)
+    cowfile = 'cows_history%s_%s.txt' % (filetag, generation)
+    deadcowfile = 'dead_cows_history%s_%s.txt' % (filetag, generation)
+    bullfile = 'bulls_history%s_%s.txt' % (filetag, generation)
+    deadbullfile = 'dead_bulls_history%s_%s.txt' % (filetag, generation)
     # Column labels
     headerline = 'animal\tsire\tdam\tborn\tsex\therd\tstatus\tcause\tdied\tTBV\tinbreeding\tedited\tn edits\tn ETs\trecessives\n'
     # Cows
@@ -2121,7 +2131,7 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
 def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=1.,
                  gens=20, percent=0.10, base_bulls=500, base_cows=2500,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
-                 filetag='', recessives=[], max_matings=500, rng_seed=None, show_recessives=False,
+                 filetag='', recessives={}, max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
                  bull_deficit='horned'):
@@ -2159,7 +2169,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :param filetag: Added to file names to describe the analysis a file is associated with.
     :type filetag: string
     :param recessives: Dictionary of recessive alleles in the population.
-    :type recessives: list
+    :type recessives: dictionary
     :param max_matings: The maximum number of matings permitted for each bull.
     :type max_matings: int
     :param show_recessives: Boolean. Print summary information for each recessive.
@@ -2209,7 +2219,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         # First, mate the animals, which creates new offspring
         print
         print '\tGeneration %s' % generation
-        print '\t\t              \tLC\tLB\tLT\tDC\tDB\tDT'
+        print '\t\t              \tLive\tLive \tLive \tDead\tDead \tDead'
+        print '\t\t              \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
         print '\t\tBefore mating:\t%s\t%s\t%s\t%s\t%s\t%s' % \
               (len(cows), len(bulls), len(cows)+len(bulls),
                len(dead_cows), len(dead_bulls),
@@ -2378,7 +2389,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                debug)
 
         print
-        print '\t\t             \tLC\tLB\tLT\tDC\tDB\tDT'
+        print '\t\t             \tLive\tLive \tLive \tDead\tDead \tDead'
+        print '\t\t             \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
         print '\t\tAfter mating:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(cows), len(bulls),
                                                              len(cows)+len(bulls), len(dead_cows),
                                                              len(dead_bulls), len(dead_cows)+len(dead_bulls))
@@ -2404,7 +2416,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         acow_count, acow_min, acow_max, acow_mean, acow_var, acow_std = animal_summary(cows)
 
         print
-        print '\t\t              \tLC\tLB\tLT\tDC\tDB\tDT'
+        print '\t\t              \tLive\tLive \tLive \tDead\tDead \tDead'
+        print '\t\t              \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
         print '\t\tAfter culling:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(cows), len(bulls), len(cows)+len(bulls),
                                                               len(dead_cows), len(dead_bulls),
                                                               len(dead_cows)+len(dead_bulls))
@@ -2474,18 +2487,19 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'show_recessives    :\t%s\n' % show_recessives
     ofh.write(outline)
-    for r in xrange(len(recessives)):
-        outline = 'Base MAF  %s      :\t%s\n' % (r+1, recessives[r][0])
+    for rk, rv in recessives.iteritems():
+        r = recessives.keys().index(rk)
+        outline = 'Base MAF  %s      :\t%s\n' % (r+1, rv['frequency'])
         ofh.write(outline)
-        outline = 'Cost      %s      :\t%s\n' % (r+1, recessives[r][1])
+        outline = 'Cost      %s      :\t%s\n' % (r+1, rv['value'])
         ofh.write(outline)
-        outline = 'Lethal    %s      :\t%s\n' % (r+1, recessives[r][2])
+        outline = 'Lethal    %s      :\t%s\n' % (r+1, rv['lethal'])
         ofh.write(outline)
-        outline = 'Name      %s      :\t%s\n' % (r + 1, recessives[r][3])
+        outline = 'Name      %s      :\t%s\n' % (r + 1, rk)
         ofh.write(outline)
-        outline = 'Edit      %s      :\t%s\n' % (r + 1, recessives[r][4])
+        outline = 'Edit      %s      :\t%s\n' % (r + 1, rv['edit'])
         ofh.write(outline)
-        outline = 'Edit type %s      :\t%s\n' % (r + 1, recessives[r][5])
+        outline = 'Edit type %s      :\t%s\n' % (r + 1, rv['edit_type'])
         ofh.write(outline)
     outline = 'Debug              :\t%s\n' % debug
     ofh.write(outline)
@@ -2523,11 +2537,12 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     x = freq_hist.keys()
     colors = itertools.cycle(['r', 'g', 'b', 'c', 'y', 'm', 'k'])
     markers = itertools.cycle(['o', 's', 'v'])
-    for r in xrange(len(recessives)):
+    for rk, rv in recessives.iteritems():
+        r = recessives.keys().index(rk)
         y = []
         for v in freq_hist.values():
             y.append(v[r])
-        ax.plot(x, y, color=colors.next(), marker=markers.next(), label=recessives[r][3])
+        ax.plot(x, y, color=colors.next(), marker=markers.next(), label=rk)
     ax.legend(loc='best')
     filename = "allele_frequency_plot%s.png" % filetag
     plt.savefig(filename, bbox_inches="tight")
@@ -2563,7 +2578,7 @@ if __name__ == '__main__':
     max_bulls =     500      # Maximum number of live bulls to keep each generation
     max_cows =      100000   # Maximum number of live cows to keep each generation
     percent =       0.10     # Proportion of bulls to use in the truncation mating scenario
-    generations =   2        # How long to run the simulation
+    generations =   10       # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
     bull_criterion = 'polled'   # How should the bulls be picked?
     bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
@@ -2602,9 +2617,9 @@ if __name__ == '__main__':
     #     [0.0542, -20, 0, 'Red', 0, 'D'],
     # ]
 
-    recessives = [
-        [0.9929,  40, 0, 'Horned', 1, 'D'],
-    ]
+    recessives = {
+        'Horned': {'frequency': 0.9929, 'value': 40, 'lethal': 0, 'edit': 1, 'edit_type': 'D'},
+    }
 
     # Alternatively, you can read the recessive information from a file.
     #with open('../recessives.config','r') as inf:
@@ -2626,7 +2641,7 @@ if __name__ == '__main__':
                  max_bulls=max_bulls,
                  max_cows=max_cows,
                  debug=debug,
-                 filetag='testing',
+                 filetag='_testing',
                  recessives=recessives,
                  max_matings=max_matings,
                  rng_seed=rng_seed,
