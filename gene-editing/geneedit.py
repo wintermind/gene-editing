@@ -1115,7 +1115,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                         c_gt = c[-1][r]
                         if b_gt == -1 and c_gt == -1:           # aa genotypes
                             # Affected calf, adjust the PA by the full value of an aa calf.
-                            b_mat[bidx, cidx] -= rk['value']
+                            b_mat[bidx, cidx] -= rv['value']
                             paa_sum += 1.
                         elif b_gt == 1 and c_gt == 1:           # AA genotypes
                             # Calf cannot be aa, no adjustment to the PA.
@@ -1124,7 +1124,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                             # There is a 1/4 chance of having an affected calf,
                             # so the PA is adjusted by 1/4 of the "value" of an
                             # aa calf.
-                            b_mat[bidx, cidx] -= (0.25 * rk['value'])
+                            b_mat[bidx, cidx] -= (0.25 * rv['value'])
                             paa_sum += 0.25
                     # Store the inbreeding/P(aa) info for later. We're saving only calves because they're the animals
                     # for which we sum the P(aa) to make mating decisions.
@@ -2578,7 +2578,7 @@ if __name__ == '__main__':
     max_bulls =     500      # Maximum number of live bulls to keep each generation
     max_cows =      100000   # Maximum number of live cows to keep each generation
     percent =       0.10     # Proportion of bulls to use in the truncation mating scenario
-    generations =   10       # How long to run the simulation
+    generations =   2        # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
     bull_criterion = 'polled'   # How should the bulls be picked?
     bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
@@ -2627,7 +2627,7 @@ if __name__ == '__main__':
     # recessives = copy.deepcopy(default_recessives)
 
 
-    run_scenario(scenario='polled',
+    run_scenario(scenario='polled_r',
                  cow_mean=cow_mean,
                  genetic_sd=genetic_sd,
                  bull_diff=bull_diff,
