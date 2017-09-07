@@ -422,7 +422,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [rv['lethal'] for rv in recessives.values()]
+    do_edits = [rv['edit'] for rv in recessives.values()]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -571,7 +571,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    do_edits = [rv['lethal'] for rv in recessives.values()]
+    do_edits = [rv['edit'] for rv in recessives.values()]
     if '1' in do_edits:
         if edit_prop[0] > 0.0:
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
@@ -786,9 +786,15 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
     # Write the pedigree to a file.
     if len(filetag) == 0:
-        pedfile = 'compute_inbreeding%s.txt' % generation
+        if penalty:
+            pedfile = 'compute_inbreeding_r_%s.txt' % generation
+        else:
+            pedfile = 'compute_inbreeding_r_%s.txt' % generation
     else:
-        pedfile = 'compute_inbreeding%s_%s.txt' % (filetag, generation)
+        if penalty:
+            pedfile = 'compute_inbreeding_r%s_%s.txt' % (filetag, generation)
+        else:
+            pedfile = 'compute_inbreeding%s_%s.txt' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Writing pedigree to %s at %s' % \
               (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -1254,7 +1260,9 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
             dead_bulls.append(nb)
 
     # If gene editing is going to happen, it happens here
-    if '1' in [rv['lethal'] for rv in recessives.values()]:
+    if debug:
+        print '\t\t[pryce_matings]: Do we edit? %s' % [rv['edit'] for rv in recessives.values()]
+    if 1 in [int(rv['edit']) for rv in recessives.values()]:
         if edit_prop[0] > 0.0:
             if debug:
                 print '\t\t[pryce_mating]: About to edit bulls. Next ID = %s' % \
@@ -1643,7 +1651,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                     #         will be carried out. If there is no success before the
                     #         final trial then the editing process fails.
                     if edit_trials > 0:
-                        outcomes = bernoulli.rvs(1.-fail_rate[rv['edit_type']], size=edit_trials)
+                        outcomes = bernoulli.rvs(1.-fail_rate[rv['edit_mode']][edit_type], size=edit_trials)
                         if outcomes.any():
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
@@ -1658,7 +1666,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                         edit_count = 0
                         while True:
                             edit_count += 1
-                            if bernoulli.rvs(1.-fail_rate[rv['edit_type']]):
+                            if bernoulli.rvs(1.-fail_rate[rv['edit_mode']][edit_type]):
                                 # 4. Update the animal's genotype
                                 ed_animal[-1][r] = 1
                                 # 5. Update the edit_status list
@@ -1676,7 +1684,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 #         and move it to the dead animals list. If edit_trials > 0 then only a fixed number of trials
                 #         will be carried out. If there is no success before the final trial then the editing process
                 #         fails.
-                outcomes = bernoulli.rvs(1. - death_rate[rv[edit_type]], size=embryo_trials)
+                outcomes = bernoulli.rvs(1. - death_rate[rv['edit_mode']][edit_type], size=embryo_trials)
                 if not outcomes.any():
                     ed_animal[6] = 'D'                # The animal is dead
                     ed_animal[7] = 'G'                # Because of gene editing
@@ -1696,7 +1704,7 @@ def edit_genes(cows, bulls, dead_cows, dead_bulls, recessives, generation, edit_
                 embryo_count = 0
                 while True:
                     embryo_count += 1
-                    if bernoulli.rvs(1. - death_rate[rv[edit_type]]):
+                    if bernoulli.rvs(1. - death_rate[rv['edit_mode']][edit_type]):
                         # 6. Update the animal's ET count
                         ed_animal[13] = embryo_count
                         break
@@ -2541,7 +2549,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         ofh.write(outline)
         outline = 'Edit      %s      :\t%s\n' % (r + 1, rv['edit'])
         ofh.write(outline)
-        outline = 'Edit type %s      :\t%s\n' % (r + 1, rv['edit_type'])
+        outline = 'Edit mode %s      :\t%s\n' % (r + 1, rv['edit_mode'])
         ofh.write(outline)
     outline = 'Debug              :\t%s\n' % debug
     ofh.write(outline)
@@ -2592,6 +2600,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     plt.savefig(filename, bbox_inches="tight")
     plt.clf()
 
+def jump():
+    pass
 
 if __name__ == '__main__':
 
@@ -2628,7 +2638,7 @@ if __name__ == '__main__':
     bull_criterion = 'polled'   # How should the bulls be picked?
     bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
-    carrier_penalty = False  # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
+    carrier_penalty = True   # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
 
 
     # -- Gene Editing Parameters
@@ -2664,7 +2674,7 @@ if __name__ == '__main__':
     # ]
 
     recessives = {
-        'Horned': {'frequency': 0.9929, 'value': 40, 'lethal': 0, 'edit': 1, 'edit_type': 'D'},
+        'Horned': {'frequency': 0.9929, 'value': 40, 'lethal': 0, 'edit': 1, 'edit_mode': 'D'},
     }
 
     # Alternatively, you can read the recessive information from a file.
