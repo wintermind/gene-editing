@@ -1168,6 +1168,18 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                         elif b_gt == 1 and c_gt == 1:           # AA genotypes
                             # Calf cannot be aa, no adjustment to the PA.
                             pass
+                        elif ( b_gt == 1 and c_gt == 0 ) or ( b_gt == 0 and c_gt == 1 ):
+                            # AA x Aa -> AA:Aa in the offspring
+                            #
+                            # We may want to penalize matings which produce carriers, in the long term.
+                            # So, let's try assigning a value to a minor allele equal to 1/2 of the
+                            # cost of a recessive. We then multiply that by 1/2 because only 1/2 of the
+                            # offspring will be carriers. This gives us:
+                            #
+                            #       total penalty   = (1/2 * 1/2) * penalty
+                            #                       = 1/4 * penalty.
+                            if carrier_penalty:
+                                b_mat[bidx, cidx] -= (0.25 * rv['value'])
                         else:                                   # Aa * Aa matings
                             # We may want to penalize matings which produce carriers, in the long term.
                             # So, let's try assigning a value to a minor allele equal to 1/2 of the
