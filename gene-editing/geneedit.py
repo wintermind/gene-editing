@@ -1021,7 +1021,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False, edit_sex='M',
                  flambda=25., bull_criterion='random', bull_deficit='use_horned',
-                 carrier_penalty=False):
+                 carrier_penalty=False, bull_polled='homo'):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -1069,6 +1069,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :type bull_deficit: string
     :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
     :rtype carrier_penalty: bool
+    :param bull_polled: Genotype of polled bulls selected for mating ('homo'|'het'|'both')
+    :type bull_polled: string
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1103,6 +1105,46 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                                                                                                           bull_criterion=bull_criterion,
                                                                                                           bull_deficit=bull_deficit,
                                                                                                           debug=debug)
+    # If the user has specified that only heterozygous or homozygous polled bulls be used then we need
+    # to drop other polled bulls from the bull portfolio.
+    if 'Horned' in recessives.keys():
+        horned_loc = recessives.keys().index('Horned')
+        new_portfolio = {}
+        starting_bulls = 0
+        for herd in bull_portfolio.keys():
+            new_portfolio[herd] = bull_portfolio[herd]
+            starting_bulls += len(bull_portfolio[herd])
+        if debug:
+            print '\t\t[pryce_mating]: Modifying bull portfolio so that %s polled bulls are used.' % bull_polled
+            print '\t\t\t[pryce_mating]: %s bulls in starting bull portfolio' % starting_bulls
+            print '\t\t\t[pryce_mating]: Horned locus at position %s in recessives dictionary' % horned_loc
+        # Use only homozygous polled bulls
+        if bull_polled == 'homo':
+            new_bulls = 0
+            for herd in bull_portfolio.keys():
+                # The selection criterion in the list comprehension on the next line keeps any bull
+                # that is homozygous for polled or horned. If we don;t do that then all you have left
+                # in the new portfolio are homozygous polled bulls, which is not what we want (too few
+                # bulls).
+                new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=0]
+                new_bulls += len(new_portfolio[herd])
+            bull_portfolio = new_portfolio
+            if debug:
+                print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
+        # Use only heterozygous polled bulls
+        elif bull_polled == 'het':
+            new_bulls = 0
+            for herd in bull_portfolio.keys():
+                # Ibid.
+                new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=1]
+                new_bulls += len(new_portfolio[herd])
+            bull_portfolio = new_portfolio
+            if debug:
+                print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
+        # Use either homozygous or heterozygous polled bulls (no action needed)
+        else:
+            pass
+
     next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
 
     #
@@ -1180,6 +1222,26 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                             #                       = 1/4 * penalty.
                             if carrier_penalty:
                                 b_mat[bidx, cidx] -= (0.25 * rv['value'])
+                        elif ( b_gt == 1 and c_gt == -1 ) or ( b_gt == -1 and c_gt == 1 ):
+                            # AA x aa -> Aa in the offspring
+                            #
+                            # Assign a value to a minor allele equal to 1/2 of the cost of a recessive.
+                            # We then multiply that by 1 because all of the offspring will be carriers.
+                            # This gives us:
+                            #
+                            #       total penalty   = 1/2 * penalty.
+                            if carrier_penalty:
+                                b_mat[bidx, cidx] -= (0.5 * rv['value'])
+                        elif ( b_gt == 0 and c_gt == -1 ) or ( b_gt == -1 and c_gt == 0 ):
+                            # Aa x aa -> Aa:aa in the offspring
+                            #
+                            # Assign a value to a minor allele equal to 1/2 of the cost of a recessive.
+                            # We then multiply that by 1/2 because half of the offspring will be carriers.
+                            # This gives us:
+                            #
+                            #       total penalty   = 1/4 * penalty.
+                            if carrier_penalty:
+                                b_mat[bidx, cidx] -= (0.25 * rv['value'])
                         else:                                   # Aa * Aa matings
                             # We may want to penalize matings which produce carriers, in the long term.
                             # So, let's try assigning a value to a minor allele equal to 1/2 of the
@@ -1239,8 +1301,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                     pass
                     #print 'Bull %s (%s) already has %s matings.' % (bidx, str(bull_portfolio[h][sorted_bulls[bidx]][0]), matings[bull_portfolio[h][sorted_bulls[bidx]][0]])
                 elif bull_portfolio[h][sorted_bulls[bidx]][6] != 'A':
-                    pass
                     #print 'Bull %s (%s) is dead' % (bidx, str(bull_portfolio[h][sorted_bulls[bidx]][0]))
+                    pass
                 else:
                     m_mat[sorted_bulls[bidx], cow_loc] = 1
                     matings[bull_portfolio[h][sorted_bulls[bidx]][0]] += 1
@@ -2205,7 +2267,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  filetag='', recessives={}, max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
-                 bull_deficit='horned', base_polled='homo', carrier_penalty=False):
+                 bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_polled='homo'):
 
     """Main loop for individual simulation scenarios.
 
@@ -2268,6 +2330,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :return: Nothing is returned from this function.
     :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
     :rtype carrier_penalty: bool
+    :param bull_polled: Genotype of polled bulls selected for mating ('homo'|'het'|'both')
+    :type bull_polled: string
     :rtype: None
     """
 
@@ -2369,7 +2433,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
-                                                              carrier_penalty=carrier_penalty)
+                                                              carrier_penalty=carrier_penalty,
+                                                              bull_polled=bull_polled)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2398,7 +2463,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
-                                                              carrier_penalty=carrier_penalty)
+                                                              carrier_penalty=carrier_penalty,
+                                                              bull_polled=bull_polled)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2422,7 +2488,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
-                                                              carrier_penalty=carrier_penalty)
+                                                              carrier_penalty=carrier_penalty,
+                                                              bull_polled=bull_polled)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
@@ -2449,7 +2516,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               flambda=flambda,
                                                               bull_criterion=bull_criterion,
                                                               bull_deficit=bull_deficit,
-                                                              carrier_penalty=carrier_penalty)
+                                                              carrier_penalty=carrier_penalty,
+                                                              bull_polled=bull_polled)
 
         # The default scenario is random mating.
         else:
@@ -2664,8 +2732,9 @@ if __name__ == '__main__':
     percent =       0.10     # Proportion of bulls to use in the truncation mating scenario
     generations =   2        # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
-    bull_criterion = 'polled'   # How should the bulls be picked?
-    bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
+    bull_criterion = 'polled'      # How should the bulls be picked?
+    bull_deficit =   'use_horned'  # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
+    bull_polled =   'homo'   # Genotype of polled bulls selected for mating ('homo'|'het'|'both')
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
     carrier_penalty = True   # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
 
@@ -2741,4 +2810,5 @@ if __name__ == '__main__':
                  bull_criterion=bull_criterion,
                  bull_deficit=bull_deficit,
                  base_polled = base_polled,
-                 carrier_penalty=carrier_penalty)
+                 carrier_penalty=carrier_penalty,
+                 bull_polled=bull_polled)
