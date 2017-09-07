@@ -69,7 +69,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     :type check_tbv: bool
     :param rng_seed: (optional) Seed used for the random number generator.
     :type rng_seed: int
-    :param base_polled: Genotype of polled animals in the base population ('homo'|'het')
+    :param base_polled: Genotype of polled animals in the base population ('homo'|'het'|'both')
     :type base_polled: string
     :param debug: (optional) Boolean. Activate debugging messages.
     :type debug: bool
@@ -221,6 +221,9 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 elif rk == 'Horned' and base_polled == 'het':
                     if base_bull_gt[b, r] == 1:
                         base_bull_gt[b, r] = 0
+                elif rk == 'Horned' and base_polled == 'both':
+                    # Don't change heterozygotes to homozygotes, or vice versa
+                    pass
                 else:
                     pass
 
@@ -231,9 +234,20 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 if rk == 'Horned' and base_polled == 'homo':
                     base_cow_gt[r, r] = 1
                     base_bull_gt[r, r] = 1
-                else:
+                elif rk == 'Horned' and base_polled == 'homo':
                     base_cow_gt[r, r] = 0
                     base_bull_gt[r, r] = 0
+                elif rk == 'Horned' and base_polled == 'both':
+                    if random.uniform(0,1) <0.66:
+                        base_cow_gt[r, r] = 0
+                    else:
+                        base_cow_gt[r, r] = 1
+                    if random.uniform(0,1) <0.66:
+                        base_bull_gt[r, r] = 0
+                    else:
+                        base_bull_gt[r, r] = 1
+                else:
+                    pass
                 print '\t[create_base_population]: Forcing there to be a carrier for each recessive, i.e., bending Nature to my will.'
                 print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, r, rk)
                 print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, r, rk)
@@ -633,7 +647,7 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
 
 def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, filetag='',
                        penalty=False, proxy_matings=False, bull_criterion='random', bull_deficit='use_horned',
-                       debug=False):
+                       bull_copies=4, debug=False):
     """Compute coefficients of inbreeding for each animal in the pedigree.
 
     :param cows: A list of live cow records.
@@ -658,6 +672,8 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     :type bull_criterion: string
     :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
     :type bull_deficit: string
+    :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
+    :type bull_copies: integer
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls with updated inbreeding.
@@ -764,7 +780,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             cow_portfolio[herd] = []
 
             herd_bulls = get_herd_bulls(bulls, recessives, bull_criterion, bull_deficit,
-                                        polled_sire_count_message, debug)
+                                        polled_sire_count_message, bull_copies, debug)
             polled_sire_count_message = False
 
             herd_bulls.sort(key=lambda x: x[9], reverse=True)  # Sort in descending order on TBV
@@ -942,7 +958,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
 
 def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use_horned',
-                   polled_sire_count_message=False, debug=False):
+                   polled_sire_count_message=False, bull_copies=4, debug=False):
 
     """Return a list of bulls for mating to a herd of cows.
 
@@ -956,6 +972,8 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
     :type bull_deficit: string
     :param polled_sire_count_message: Print debugging message about availability of polled sires.
     :type polled_sire_count_message: boolean
+    :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
+    :type bull_copies: integer
     :param debug: Activate/deactivate debugging messages.
     :type debug: boolean
     :return: A list of bulls for mating to cows in a herd.
@@ -975,7 +993,7 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
     # Use polled bulls
     if bull_criterion == 'polled':
         # Copies = 4 will select all PP and Pp bulls.
-        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=4)
+        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=bull_copies, debug=debug)
         random.shuffle(mating_bulls)  # Randomly order bulls
         other_bulls = [bull for bull in bulls if bull not in mating_bulls]
         random.shuffle(other_bulls)
@@ -1021,7 +1039,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False, edit_sex='M',
                  flambda=25., bull_criterion='random', bull_deficit='use_horned',
-                 carrier_penalty=False, bull_polled='homo'):
+                 carrier_penalty=False, bull_copies=4):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -1069,8 +1087,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :type bull_deficit: string
     :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
     :rtype carrier_penalty: bool
-    :param bull_polled: Genotype of polled bulls selected for mating ('homo'|'het'|'both')
-    :type bull_polled: string
+    :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
+    :type bull_copies: integer
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1104,46 +1122,48 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                                                                                                           proxy_matings=True,
                                                                                                           bull_criterion=bull_criterion,
                                                                                                           bull_deficit=bull_deficit,
+                                                                                                          bull_copies=bull_copies,
                                                                                                           debug=debug)
-    # If the user has specified that only heterozygous or homozygous polled bulls be used then we need
-    # to drop other polled bulls from the bull portfolio.
-    if 'Horned' in recessives.keys():
-        horned_loc = recessives.keys().index('Horned')
-        new_portfolio = {}
-        starting_bulls = 0
-        for herd in bull_portfolio.keys():
-            new_portfolio[herd] = bull_portfolio[herd]
-            starting_bulls += len(bull_portfolio[herd])
-        if debug:
-            print '\t\t[pryce_mating]: Modifying bull portfolio so that %s polled bulls are used.' % bull_polled
-            print '\t\t\t[pryce_mating]: %s bulls in starting bull portfolio' % starting_bulls
-            print '\t\t\t[pryce_mating]: Horned locus at position %s in recessives dictionary' % horned_loc
-        # Use only homozygous polled bulls
-        if bull_polled == 'homo':
-            new_bulls = 0
-            for herd in bull_portfolio.keys():
-                # The selection criterion in the list comprehension on the next line keeps any bull
-                # that is homozygous for polled or horned. If we don;t do that then all you have left
-                # in the new portfolio are homozygous polled bulls, which is not what we want (too few
-                # bulls).
-                new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=0]
-                new_bulls += len(new_portfolio[herd])
-            bull_portfolio = new_portfolio
-            if debug:
-                print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
-        # Use only heterozygous polled bulls
-        elif bull_polled == 'het':
-            new_bulls = 0
-            for herd in bull_portfolio.keys():
-                # Ibid.
-                new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=1]
-                new_bulls += len(new_portfolio[herd])
-            bull_portfolio = new_portfolio
-            if debug:
-                print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
-        # Use either homozygous or heterozygous polled bulls (no action needed)
-        else:
-            pass
+
+    # # If the user has specified that only heterozygous or homozygous polled bulls be used then we need
+    # # to drop other polled bulls from the bull portfolio.
+    # if 'Horned' in recessives.keys():
+    #     horned_loc = recessives.keys().index('Horned')
+    #     new_portfolio = {}
+    #     starting_bulls = 0
+    #     for herd in bull_portfolio.keys():
+    #         new_portfolio[herd] = bull_portfolio[herd]
+    #         starting_bulls += len(bull_portfolio[herd])
+    #     if debug:
+    #         print '\t\t[pryce_mating]: Modifying bull portfolio so that %s polled bulls are used.' % bull_polled
+    #         print '\t\t\t[pryce_mating]: %s bulls in starting bull portfolio' % starting_bulls
+    #         print '\t\t\t[pryce_mating]: Horned locus at position %s in recessives dictionary' % horned_loc
+    #     # Use only homozygous polled bulls
+    #     if bull_polled == 'homo':
+    #         new_bulls = 0
+    #         for herd in bull_portfolio.keys():
+    #             # The selection criterion in the list comprehension on the next line keeps any bull
+    #             # that is homozygous for polled or horned. If we don;t do that then all you have left
+    #             # in the new portfolio are homozygous polled bulls, which is not what we want (too few
+    #             # bulls).
+    #             new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=0]
+    #             new_bulls += len(new_portfolio[herd])
+    #         bull_portfolio = new_portfolio
+    #         if debug:
+    #             print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
+    #     # Use only heterozygous polled bulls
+    #     elif bull_polled == 'het':
+    #         new_bulls = 0
+    #         for herd in bull_portfolio.keys():
+    #             # Ibid.
+    #             new_portfolio[herd] = [bull for bull in bull_portfolio[herd] if bull[-1][horned_loc]!=1]
+    #             new_bulls += len(new_portfolio[herd])
+    #         bull_portfolio = new_portfolio
+    #         if debug:
+    #             print '\t\t\t[pryce_mating]: %s bulls in new bull portfolio' % new_bulls
+    #     # Use either homozygous or heterozygous polled bulls (no action needed)
+    #     else:
+    #         pass
 
     next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
 
@@ -1390,8 +1410,8 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
 
     :param animal_list: List of animal records.
     :type animal_list: list
-    :param get_recessive: Boolean. Activate/deactivate debugging messages.
-    :type get_recessive: int
+    :param get_recessive: Recessive for which list will be returned.
+    :type get_recessive: string
     :param recessives: dictionary of recessives in the population.
     :type recessives: dictionary
     :param copies: Boolean. Copies of the minor allele in selected animals (4 = A\_ and 5 = a\_).
@@ -1417,14 +1437,14 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
         return []
 
     # Make sure the count of copies of the minor allele is valid.
-    if copies not in [0,1,2,4,5]:
-        print '\t[fetch_recessives]: The number of copies, %s, is not 0, 1, 2, 4, or 5!' % \
+    if copies not in [0,1,2,4,5,6]:
+        print '\t[fetch_recessives]: The number of copies, %s, is not 0, 1, 2, 4, 5, or 6!' % \
               (copies)
         return []
 
     # In the recessives array, a 1 indicates an AA, 0 is an Aa, and a -1 is aa.
-    # fetch_recessives() also uses 4 to select both AA & Aa, and 5 to select both
-    # aa & Aa.
+    # fetch_recessives() also uses 4 to select both AA & Aa, 5 to select both
+    # aa & Aa, and 6 to select both AA & aa.
 
     # Where in the recessives list is the one we want?
     rec_loc = recessives.keys().index(get_recessive)
@@ -1442,6 +1462,8 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
         elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == 1) and copies == 4:
             selected_animals.append(animal)
         elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == -1) and copies == 5:
+            selected_animals.append(animal)
+        elif (animal[-1][rec_loc] == -1 or animal[-1][rec_loc] == 1) and copies == 6:
             selected_animals.append(animal)
         else:
             pass
@@ -2267,7 +2289,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  filetag='', recessives={}, max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
-                 bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_polled='homo'):
+                 bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_copies=4):
 
     """Main loop for individual simulation scenarios.
 
@@ -2325,13 +2347,13 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type bull_criterion: string
     :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
     :type bull_deficit: string
-    :param base_polled: Genotype of polled animals in the base population ('homo'|'het')
+    :param base_polled: Genotype of polled animals in the base population ('homo'|'het'|'both')
     :type base_polled: string
     :return: Nothing is returned from this function.
     :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
     :rtype carrier_penalty: bool
-    :param bull_polled: Genotype of polled bulls selected for mating ('homo'|'het'|'both')
-    :type bull_polled: string
+    :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
+    :type bull_copies: integer
     :rtype: None
     """
 
@@ -2434,7 +2456,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_polled=bull_polled)
+                                                              bull_copies=bull_copies)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2464,7 +2486,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_polled=bull_polled)
+                                                              bull_copies=bull_copies)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2489,7 +2511,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_polled=bull_polled)
+                                                              bull_copies=bull_copies)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
@@ -2517,7 +2539,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_criterion=bull_criterion,
                                                               bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_polled=bull_polled)
+                                                              bull_copies=bull_copies)
 
         # The default scenario is random mating.
         else:
@@ -2722,7 +2744,7 @@ if __name__ == '__main__':
     base_bulls =    350      # Initial number of founder bulls in the population
     base_cows =     35000    # Initial number of founder cows in the population
     base_herds =    200      # Number of herds in the population
-    base_polled =   'homo'   # Genotype of polled animals in the base population ('homo'|'het')
+    base_polled =   'both'   # Genotype of polled animals in the base population ('homo'|'het'|'both')
 
 
     # -- Scenario Parameters
@@ -2734,7 +2756,7 @@ if __name__ == '__main__':
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
     bull_criterion = 'polled'      # How should the bulls be picked?
     bull_deficit =   'use_horned'  # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
-    bull_polled =   'homo'   # Genotype of polled bulls selected for mating ('homo'|'het'|'both')
+    bull_copies =   4        # Genotype of polled bulls selected for mating ('homo'|'het'|'both')
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
     carrier_penalty = True   # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
 
@@ -2811,4 +2833,4 @@ if __name__ == '__main__':
                  bull_deficit=bull_deficit,
                  base_polled = base_polled,
                  carrier_penalty=carrier_penalty,
-                 bull_polled=bull_polled)
+                 bull_copies=bull_copies)
