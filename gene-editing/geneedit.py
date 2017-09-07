@@ -35,18 +35,13 @@ import types
 #   https://gsejournal.biomedcentral.com/articles/10.1186/s12711-016-0228-7). Most notably, polled bulls
 #   are about twice as inbred and twice as related as polled cows.
 #
-# + Add a new attribute to traits definitions to indicate if an edit is a knock-out (deletion) or an
-#   insertion/modification. Success rates are much higher for the former than the latter.
-#
-# + Convert recessives to a dictionary
-#
 # + Convert animal records to dictionaries
 ###
 
 
 def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=1., base_bulls=500, base_cows=2500,
                            base_herds=100, force_carriers=True, force_best=True, recessives={}, check_tbv=False,
-                           rng_seed=None, debug=True):
+                           rng_seed=None, base_polled='homo', debug=True):
 
     """Setup the simulation and create the base population.
 
@@ -74,6 +69,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     :type check_tbv: bool
     :param rng_seed: (optional) Seed used for the random number generator.
     :type rng_seed: int
+    :param base_polled: Genotype of polled animals in the base population ('homo'|'het')
+    :type base_polled: string
     :param debug: (optional) Boolean. Activate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, dead bulls, and the histogram of TBV.
@@ -196,6 +193,15 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                     base_cow_gt[c, r] = -1
                 else:
                     base_cow_gt[c, r] = 0
+                # If the user has requested specific horned genotypes assign them
+                if rk == 'Horned' and base_polled == 'homo':
+                    if base_cow_gt[c, r] = 0:
+                        base_cow_gt[c, r] = 1
+                elif rk == 'Horned' and base_polled == 'het':
+                    if base_cow_gt[c, r] = 1:
+                        base_cow_gt[c, r] = 0
+                else:
+                    pass
             for b in xrange(base_bulls):
                 # Get the bull's genotype -- since the parameter we're
                 # using is the major allele frequency (p), a success (1) is
@@ -208,13 +214,26 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                     base_bull_gt[b, r] = -1
                 else:
                     base_bull_gt[b, r] = 0
+                # If the user has requested specific horned genotypes assign them
+                if rk == 'Horned' and base_polled == 'homo':
+                    if base_bull_gt[b, r] = 0:
+                        base_bull_gt[b, r] = 1
+                elif rk == 'Horned' and base_polled == 'het':
+                    if base_bull_gt[b, r] = 1:
+                        base_bull_gt[b, r] = 0
+                else:
+                    pass
 
             # You may want to force at least one carrier for each mutation so that the
             # vagaries of the RNG don't thwart you. If you don't do this, then your
             # base population may not have any minor alleles for a rare recessive.
             if force_carriers:
-                base_cow_gt[r, r] = 0
-                base_bull_gt[r, r] = 0
+                if rk == 'Horned' and base_polled == 'homo':
+                    base_cow_gt[r, r] = 1
+                    base_bull_gt[r, r] = 1
+                else:
+                    base_cow_gt[r, r] = 0
+                    base_bull_gt[r, r] = 0
                 print '\t[create_base_population]: Forcing there to be a carrier for each recessive, i.e., bending Nature to my will.'
                 print '\t[create_base_population]: \tCow %s is a carrier for recessive %s (%s)' % (r, r, rk)
                 print '\t[create_base_population]: \tBull %s is a carrier for recessive %s (%s)' % (r, r, rk)
@@ -979,7 +998,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                  recessives, max_matings=500, base_herds=100, debug=False,
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False, edit_sex='M',
-                 flambda=25., bull_criterion='random', bull_deficit='use_horned'):
+                 flambda=25., bull_criterion='random', bull_deficit='use_horned',
+                 carrier_penalty=False):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -1025,6 +1045,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :type bull_criterion: string
     :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
     :type bull_deficit: string
+    :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
+    :rtype carrier_penalty: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1120,11 +1142,20 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                         elif b_gt == 1 and c_gt == 1:           # AA genotypes
                             # Calf cannot be aa, no adjustment to the PA.
                             pass
-                        else:
+                        else:                                   # Aa * Aa matings
+                            # We may want to penalize matings which produce carriers, in the long term.
+                            # So, let's try assigning a value to a minor allele equal to 1/2 of the
+                            # cost of a recessive. We then multiply that by 1/2 because only 1/2 of the
+                            # offspring will be carriers. After that, deduct the 1/4 penalty for the homo-
+                            # zygotes. This leads us to: total penalty = (1/2 * 1/2) * penalty + 1/4 * penalty =
+                            # 1/2 * penalty.
+                            if carrier_penalty:
+                                b_mat[bidx, cidx] -= (0.5 * rv['value'])
                             # There is a 1/4 chance of having an affected calf,
                             # so the PA is adjusted by 1/4 of the "value" of an
                             # aa calf.
-                            b_mat[bidx, cidx] -= (0.25 * rv['value'])
+                            else:
+                                b_mat[bidx, cidx] -= (0.25 * rv['value'])
                             paa_sum += 0.25
                     # Store the inbreeding/P(aa) info for later. We're saving only calves because they're the animals
                     # for which we sum the P(aa) to make mating decisions.
@@ -2134,7 +2165,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  filetag='', recessives={}, max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
-                 bull_deficit='horned'):
+                 bull_deficit='horned', base_polled='homo', carrier_penalty=False):
 
     """Main loop for individual simulation scenarios.
 
@@ -2192,7 +2223,11 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type bull_criterion: string
     :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
     :type bull_deficit: string
+    :param base_polled: Genotype of polled animals in the base population ('homo'|'het')
+    :type base_polled: string
     :return: Nothing is returned from this function.
+    :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
+    :rtype carrier_penalty: bool
     :rtype: None
     """
 
@@ -2210,6 +2245,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                            base_herds=base_herds,
                                                                            recessives=recessives,
                                                                            rng_seed=rng_seed,
+                                                                           base_polled=base_polled,
                                                                            debug=debug)
 
     # This is the start of the next generation
@@ -2292,7 +2328,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_type=edit_type,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
-                                                              flambda=flambda)
+                                                              flambda=flambda,
+                                                              carrier_penalty=carrier_penalty)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2320,7 +2357,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_type=edit_type,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
-                                                              flambda=flambda)
+                                                              flambda=flambda,
+                                                              carrier_penalty=carrier_penalty)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2346,7 +2384,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
                                                               bull_criterion=bull_criterion,
-                                                              bull_deficit=bull_deficit)
+                                                              bull_deficit=bull_deficit,
+                                                              carrier_penalty=carrier_penalty)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
@@ -2372,7 +2411,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
                                                               bull_criterion=bull_criterion,
-                                                              bull_deficit=bull_deficit)
+                                                              bull_deficit=bull_deficit,
+                                                              carrier_penalty=carrier_penalty)
 
         # The default scenario is random mating.
         else:
@@ -2467,6 +2507,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'base herds         :\t%s\n' % base_herds
     ofh.write(outline)
+    outline = 'base polled        :\t%s\n' % base_polled
+    ofh.write(outline)
     outline = 'service bulls      :\t%s\n' % service_bulls
     ofh.write(outline)
     outline = 'max bulls          :\t%s\n' % max_bulls
@@ -2512,6 +2554,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     outline = 'bull_deficit:\t%s\n' % bull_deficit
     ofh.write(outline)
     outline = 'bull_criterion:\t%s\n' % bull_criterion
+    ofh.write(outline)
+    outline = 'carrier penalty    :\t%s\n' % carrier_penalty
     ofh.write(outline)
 
     ofh.close()
@@ -2571,6 +2615,7 @@ if __name__ == '__main__':
     base_bulls =    350      # Initial number of founder bulls in the population
     base_cows =     35000    # Initial number of founder cows in the population
     base_herds =    200      # Number of herds in the population
+    base_polled =   'homo'   # Genotype of polled animals in the base population ('homo'|'het')
 
 
     # -- Scenario Parameters
@@ -2583,6 +2628,7 @@ if __name__ == '__main__':
     bull_criterion = 'polled'   # How should the bulls be picked?
     bull_deficit = 'use_horned' # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
+    carrier_penalty = False  # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
 
 
     # -- Gene Editing Parameters
@@ -2654,4 +2700,6 @@ if __name__ == '__main__':
                  embryo_inbreeding=embryo_inbreeding,
                  flambda=flambda,
                  bull_criterion=bull_criterion,
-                 bull_deficit=bull_deficit)
+                 bull_deficit=bull_deficit,
+                 base_polled = base_polled,
+                 carrier_penalty=carrier_penalty)
