@@ -664,6 +664,16 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     :rtype: list
     """
 
+    if debug:
+            print '\t\t[compute_inbreeding]: generation     : %s' % generation
+            print '\t\t[compute_inbreeding]: generations    : %s' % generations
+            print '\t\t[compute_inbreeding]: filetag        : %s' % filetag
+            print '\t\t[compute_inbreeding]: penalty        : %s' % penalty
+            print '\t\t[compute_inbreeding]: proxy_matings  : %s' % proxy_matings
+            print '\t\t[compute_inbreeding]: bull_criterion : %s' % bull_criterion
+            print '\t\t[compute_inbreeding]: bull_deficit   : %s' % bull_deficit
+            print '\t\t[compute_inbreeding]: debug          : %s' % debug
+
     # Now, we're going to need to construct a pedigree that includes matings of all cows in
     # each herd to the bulls randomly assigned to that herd. Bulls are randomly assigned to
     # herds to reflect different sire selection policies. It is faster to calculate the
@@ -868,9 +878,15 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
     # Load the COI into a dictionary keyed by original animal ID
     if len(filetag) == 0:
-        coifile = 'compute_inbreeding_%s.txt.solinb' % generation
+        if penalty:
+            coifile = 'compute_inbreeding_r_%s.txt.solinb' % generation
+        else:
+            coifile = 'compute_inbreeding_%s.txt.solinb' % generation
     else:
-        coifile = 'compute_inbreeding%s_%s.txt.solinb' % (filetag, generation)
+        if penalty:
+            coifile = 'compute_inbreeding_r%s_%s.txt.solinb' % (filetag, generation)
+        else:
+            coifile = 'compute_inbreeding%s_%s.txt.solinb' % (filetag, generation)
     if debug:
         print '\t[compute_inbreeding]: Putting coefficients of inbreeding from %s.solinb in a dictionary at %s' \
             % (pedfile, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -1075,14 +1091,18 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     #
     # Compute inbreeding
     #
-    cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr = compute_inbreeding(cows, bulls,
-                                                                                                          dead_cows,
-                                                                                           dead_bulls, generation,
-                                                                                           generations, filetag,
-                                                                                           penalty, proxy_matings=True,
-                                                                                           bull_criterion=bull_criterion,
-                                                                                           bull_deficit=bull_deficit,
-                                                                                           debug=debug)
+    cows, bulls, dead_cows, dead_bulls, matings, bull_portfolio, cow_portfolio, inbr = compute_inbreeding(cows=cows,
+                                                                                                          bulls=bulls,
+                                                                                                          dead_cows=dead_cows,
+                                                                                                          dead_bulls=dead_bulls,
+                                                                                                          generation=generation,
+                                                                                                          generations=generations,
+                                                                                                          filetag=filetag,
+                                                                                                          penalty=penalty,
+                                                                                                          proxy_matings=True,
+                                                                                                          bull_criterion=bull_criterion,
+                                                                                                          bull_deficit=bull_deficit,
+                                                                                                          debug=debug)
     next_id = get_next_id(cows, bulls, dead_cows, dead_bulls)
 
     #
@@ -2277,13 +2297,13 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         if scenario == 'random':
             print '\n[run_scenario]: Mating cows randomly at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = random_mating(cows,
-                                                               bulls,
-                                                               dead_cows,
-                                                               dead_bulls,
-                                                               generation,
-                                                               gens,
-                                                               recessives,
+            cows, bulls, dead_cows, dead_bulls = random_mating(cows=cows,
+                                                               bulls=bulls,
+                                                               dead_cows=dead_cows,
+                                                               dead_bulls=dead_bulls,
+                                                               generation=generation,
+                                                               generations=gens,
+                                                               recessives=recessives,
                                                                max_matings=max_matings,
                                                                edit_prop=edit_prop,
                                                                edit_type=edit_type,
@@ -2297,13 +2317,13 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'truncation':
             print '\n[run_scenario]: Mating cows using truncation selection at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = truncation_mating(cows,
-                                                                   bulls,
-                                                                   dead_cows,
-                                                                   dead_bulls,
-                                                                   generation,
-                                                                   gens,
-                                                                   recessives,
+            cows, bulls, dead_cows, dead_bulls = truncation_mating(cows=cows,
+                                                                   bulls=bulls,
+                                                                   dead_cows=dead_cows,
+                                                                   dead_bulls=dead_bulls,
+                                                                   generation=generation,
+                                                                   generations=gens,
+                                                                   recessives=recessives,
                                                                    pct=percent,
                                                                    edit_prop=edit_prop,
                                                                    edit_type=edit_type,
@@ -2319,14 +2339,14 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'pryce':
             print '\n[run_scenario]: Mating cows using Pryce\'s method at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
-                                                              bulls,
-                                                              dead_cows,
-                                                              dead_bulls,
-                                                              generation,
-                                                              gens,
-                                                              filetag,
-                                                              recessives,
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
+                                                              bulls=bulls,
+                                                              dead_cows=dead_cows,
+                                                              dead_bulls=dead_bulls,
+                                                              generation=generation,
+                                                              generations=gens,
+                                                              filetag=filetag,
+                                                              recessives=recessives,
                                                               max_matings=max_matings,
                                                               base_herds=base_herds,
                                                               debug=debug,
@@ -2348,17 +2368,17 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'pryce_r':
             print '\n[run_scenario]: Mating cows using Pryce\'s method and accounting for recessives at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
-                                                              bulls,
-                                                              dead_cows,
-                                                              dead_bulls,
-                                                              generation,
-                                                              gens,
-                                                              filetag,
-                                                              recessives,
-                                                              max_matings,
-                                                              base_herds,
-                                                              debug,
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
+                                                              bulls=bulls,
+                                                              dead_cows=dead_cows,
+                                                              dead_bulls=dead_bulls,
+                                                              generation=generation,
+                                                              generations=gens,
+                                                              filetag=filetag,
+                                                              recessives=recessives,
+                                                              max_matings=max_matings,
+                                                              base_herds=base_herds,
+                                                              debug=debug,
                                                               penalty=True,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
@@ -2372,44 +2392,41 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'polled':
             print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
-                                                              bulls,
-                                                              dead_cows,
-                                                              dead_bulls,
-                                                              generation,
-                                                              generations,
-                                                              filetag,
-                                                              recessives,
-                                                              max_matings,
-                                                              base_herds,
-                                                              debug,
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
+                                                              bulls=bulls,
+                                                              dead_cows=dead_cows,
+                                                              dead_bulls=dead_bulls,
+                                                              generation=generation,
+                                                              generations=gens,
+                                                              filetag=filetag,
+                                                              recessives=recessives,
+                                                              max_matings=max_matings,
+                                                              base_herds=base_herds,
+                                                              debug=debug,
                                                               penalty=False,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
                                                               edit_type=edit_type,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
-                                                              embryo_inbreeding=embryo_inbreeding,
                                                               flambda=flambda,
-                                                              bull_criterion=bull_criterion,
-                                                              bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
             print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method and accounting for recessives at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows,
-                                                              bulls,
-                                                              dead_cows,
-                                                              dead_bulls,
-                                                              generation,
-                                                              generations,
-                                                              filetag,
-                                                              recessives,
-                                                              max_matings,
-                                                              base_herds,
-                                                              debug,
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
+                                                              bulls=bulls,
+                                                              dead_cows=dead_cows,
+                                                              dead_bulls=dead_bulls,
+                                                              generation=generation,
+                                                              generations=generations,
+                                                              filetag=filetag,
+                                                              recessives=recessives,
+                                                              max_matings=max_matings,
+                                                              base_herds=base_herds,
+                                                              debug=debug,
                                                               penalty=True,
                                                               service_bulls=service_bulls,
                                                               edit_prop=edit_prop,
@@ -2424,17 +2441,17 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
 
         # The default scenario is random mating.
         else:
-            cows, bulls, dead_cows, dead_bulls = random_mating(cows,
-                                                               bulls,
-                                                               dead_cows,
-                                                               dead_bulls,
-                                                               generation,
-                                                               gens,
-                                                               recessives,
-                                                               max_matings,
-                                                               edit_prop,
-                                                               edit_type,
-                                                               debug)
+            cows, bulls, dead_cows, dead_bulls = random_mating(cows=cows,
+                                                               bulls=bulls,
+                                                               dead_cows=dead_cows,
+                                                               dead_bulls=dead_bulls,
+                                                               generation=generation,
+                                                               generations=generations,
+                                                               recessives=recessives,
+                                                               max_matings=max_matings,
+                                                               edit_prop=edit_prop,
+                                                               edit_type=edit_type,
+                                                               debug=debug)
 
         print
         print '\t\t             \tLive\tLive \tLive \tDead\tDead \tDead'
@@ -2608,7 +2625,7 @@ if __name__ == '__main__':
     # Simulation parameters
 
     # -- Program Control Parameters
-    debug =         False        # Activate (True) or deactivate (False) debugging messages
+    debug =         True        # Activate (True) or deactivate (False) debugging messages
     rng_seed =      long(time.time()) + os.getpid() 	# Use the current time to generate the RNG seed so that we can recreate the
                                                         # simulation if we need/want to.
     #rng_seed = 419
