@@ -195,10 +195,10 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                     base_cow_gt[c, r] = 0
                 # If the user has requested specific horned genotypes assign them
                 if rk == 'Horned' and base_polled == 'homo':
-                    if base_cow_gt[c, r] = 0:
+                    if base_cow_gt[c, r] == 0:
                         base_cow_gt[c, r] = 1
                 elif rk == 'Horned' and base_polled == 'het':
-                    if base_cow_gt[c, r] = 1:
+                    if base_cow_gt[c, r] == 1:
                         base_cow_gt[c, r] = 0
                 else:
                     pass
