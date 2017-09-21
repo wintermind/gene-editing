@@ -36,12 +36,14 @@ import types
 #   are about twice as inbred and twice as related as polled cows.
 #
 # + Convert animal records to dictionaries
+#
+# + add base pop gens to allele frequency history
 ###
 
 
-def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=1., base_bulls=500, base_cows=2500,
-                           base_herds=100, force_carriers=True, force_best=True, recessives={}, check_tbv=False,
-                           rng_seed=None, base_polled='homo', debug=True):
+def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=[1.0,1.3], base_bulls=500,
+                           base_cows=2500, base_herds=100, force_carriers=True, force_best=True, recessives={},
+                           check_tbv=False, rng_seed=None, base_polled='homo', polled_parms=[], debug=True):
 
     """Setup the simulation and create the base population.
 
@@ -51,8 +53,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     :type genetic_sd: float
     :param bull_diff: Differential between base cows and bulls, in genetic SD.
     :type bull_diff: float
-    :param polled_diff: Differential between horned and polled bulls, in genetic SD.
-    :type polled_diff: float
+    :parm polled_diff: Difference between Pp and pp bulls, and PP and pp bulls, in genetic SD.
+    :type polled_diff: List of floats
     :param base_bulls: (optional)Number of bulls in the base population (founders)
     :type base_bulls: int
     :param base_cows: (optional) Number of cows in the base population (founders)
@@ -71,6 +73,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     :type rng_seed: int
     :param base_polled: Genotype of polled animals in the base population ('homo'|'het'|'both')
     :type base_polled: string
+    :param polled_parms: List. Proportion of polled bulls, proportion of PP, and proportion of Pp bulls.
+    :type polled_parms: list of floats
     :param debug: (optional) Boolean. Activate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, dead bulls, and the histogram of TBV.
@@ -200,6 +204,9 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                 elif rk == 'Horned' and base_polled == 'het':
                     if base_cow_gt[c, r] == 1:
                         base_cow_gt[c, r] = 0
+                elif rk == 'Horned' and base_polled == 'both':
+                    # Don't change heterozygotes to homozygotes, or vice versa
+                    pass
                 else:
                     pass
             for b in xrange(base_bulls):
@@ -259,6 +266,23 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
     dead_bulls = []                 # List of dead bulls in the population (history)
     id_list = []
 
+    # Some polled bulls were created by chance in the "make bulls" loop above. We can increase the frequency
+    # of polled bulls to match a model population, such as the polled bulls available in 2013 as in Spurlock's
+    # paper.
+    if polled_parms != [] and polled_parms[0] > 0.:
+        for b in xrange(base_bulls):
+            # Should this bull be polled?
+            if bernoulli.rvs(polled_parms[0]):
+                # Should this bull be PP?
+                if bernoulli.rvs(polled_parms[1]):
+                    base_bull_gt[b, r] = 1
+                # If not, then it's Pp.
+                else:
+                    base_bull_gt[b, r] = 0
+    # Don't match a population and proceed.
+    else:
+        pass
+
 
     # Assume that polled bulls average ~1 SD lower genetic merit than horned bulls, based on average
     # PTA for NM$ of $590 versus $761 (difference of $171) from Spurlock et al., 2014,
@@ -300,8 +324,10 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
         if b in id_list:
             if debug:
                 print '[create_base_population]: Error! A bull with ID %s already exists in the ID list!' % b
-        if horned and base_bull_gt[i][horned_loc] >= 0:
-            bull_tbv = base_bull_tbv.item(i) - (sigma * polled_diff)
+        if horned and base_bull_gt[i][horned_loc] == 0:                     # 0 = Pp
+            bull_tbv = base_bull_tbv.item(i) - (sigma * polled_diff[1])
+        elif horned and base_bull_gt[i][horned_loc] == 1:                   # 1 = PP
+            bull_tbv = base_bull_tbv.item(i) - (sigma * polled_diff[0])
         else:
             bull_tbv = base_bull_tbv.item(i)
         b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
@@ -1259,9 +1285,9 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                             # We then multiply that by 1/2 because half of the offspring will be carriers.
                             # This gives us:
                             #
-                            #       total penalty   = 1/4 * penalty.
+                            #       total penalty   = 1/4 * penalty (carriers) + 1/2 * penalty (affected).
                             if carrier_penalty:
-                                b_mat[bidx, cidx] -= (0.25 * rv['value'])
+                                b_mat[bidx, cidx] -= ( (0.25 * rv['value']) + (0.50 * rv['value']) )
                         else:                                   # Aa * Aa matings
                             # We may want to penalize matings which produce carriers, in the long term.
                             # So, let's try assigning a value to a minor allele equal to 1/2 of the
@@ -2283,13 +2309,14 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
 # Main loop for individual simulation scenarios.
 
 
-def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=1.,
+def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=[1.0,1.3],
                  gens=20, percent=0.10, base_bulls=500, base_cows=2500,
                  service_bulls=50, base_herds=100, max_bulls=1500, max_cows=7500, debug=False,
                  filetag='', recessives={}, max_matings=500, rng_seed=None, show_recessives=False,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
-                 bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_copies=4):
+                 bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_copies=4,
+                 polled_parms=[0.0,0.0,0.0]):
 
     """Main loop for individual simulation scenarios.
 
@@ -2301,8 +2328,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type genetic_sd: float
     :param bull_diff: Differential between base cows and bulls, in genetic SD.
     :type bull_diff: float
-    :param polled_diff: Differential between horned and polled bulls, in genetic SD.
-    :type polled_diff: float
+    :parm polled_diff: Difference between Pp and pp bulls, and PP and pp bulls, in genetic SD.
+    :type polled_diff: List of floats
     :param gens: Total number of generations to run the simulation.
     :type gens: int
     :param percent: Percent of bulls to use as sires in the truncation mating scenario.
@@ -2354,6 +2381,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :rtype carrier_penalty: bool
     :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
     :type bull_copies: integer
+    :param polled_parms: Proportion of polled bulls, proportion of PP, and proportion of Pp bulls.
+    :type polled_parms: list of floats
     :rtype: None
     """
 
@@ -2372,6 +2401,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                            recessives=recessives,
                                                                            rng_seed=rng_seed,
                                                                            base_polled=base_polled,
+                                                                           polled_parms=polled_parms,
                                                                            debug=debug)
 
     # This is the start of the next generation
@@ -2510,6 +2540,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               edit_trials=edit_trials,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
+                                                              bull_criterion=bull_criterion,
+                                                              bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
                                                               bull_copies=bull_copies)
 
@@ -2624,7 +2656,21 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'bull_diff          :\t%s\n' % bull_diff
     ofh.write(outline)
-    outline = 'polled_diff        :\t%s\n' % polled_diff
+    outline = 'polled_diff        :\n'
+    ofh.write(outline)
+    outline = '                     %s\n' % polled_diff[0]
+    ofh.write(outline)
+    outline = '                     %s\n' % polled_diff[1]
+    ofh.write(outline)
+    outline = 'polled_parms       :\n'
+    ofh.write(outline)
+    outline = '        percent polled: %s\n' % polled_parms[0]
+    ofh.write(outline)
+    outline = '        percent PP:     %s\n' % polled_parms[1]
+    ofh.write(outline)
+    outline = '        percent Pp:     %s\n' % polled_parms[2]
+    ofh.write(outline)
+    outline = '                     %s\n' % polled_diff[1]
     ofh.write(outline)
     outline = 'percent            :\t%s\n' % percent
     ofh.write(outline)
@@ -2684,7 +2730,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'carrier penalty    :\t%s\n' % carrier_penalty
     ofh.write(outline)
-
+    outline = 'bull copies        :\t%s\n' % bull_copies
+    ofh.write(outline)
     ofh.close()
 
     # Save the allele frequency history
@@ -2740,11 +2787,15 @@ if __name__ == '__main__':
     cow_mean =      0.       # Average base population cow TBV.
     genetic_sd =    200.     # Additive genetic SD of the simulated trait.
     bull_diff =     1.5      # Differential between base cows and bulls, in genetic SD
-    polled_diff =   1.       # Differential between horned and polled bulls, in genetic SD
     base_bulls =    350      # Initial number of founder bulls in the population
     base_cows =     35000    # Initial number of founder cows in the population
     base_herds =    200      # Number of herds in the population
     base_polled =   'both'   # Genotype of polled animals in the base population ('homo'|'het'|'both')
+    polled_parms = [0.10,    # Proportion of polled bulls, proportion of PP, and proportion of Pp bulls.
+                    0.18,
+                    0.82]
+    polled_diff =  [1.0,     # Differential between Pp and pp bulls, in genetic CD
+                    1.3]     # Differential between PP and pp bulls, in genetic CD
 
 
     # -- Scenario Parameters
@@ -2833,4 +2884,5 @@ if __name__ == '__main__':
                  bull_deficit=bull_deficit,
                  base_polled = base_polled,
                  carrier_penalty=carrier_penalty,
-                 bull_copies=bull_copies)
+                 bull_copies=bull_copies,
+                 polled_parms=polled_parms)
