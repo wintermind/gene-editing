@@ -268,7 +268,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
 
     # Some polled bulls were created by chance in the "make bulls" loop above. We can increase the frequency
     # of polled bulls to match a model population, such as the polled bulls available in 2013 as in Spurlock's
-    # paper.
+    # paper. This means that, technically, the frequency of polled bulls will be what's in polled_parms plus
+    # 1-P(Horned).
     if polled_parms != [] and polled_parms[0] > 0.:
         for b in xrange(base_bulls):
             # Should this bull be polled?
@@ -801,13 +802,16 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             print '\t[compute_inbreeding]: Mating all cows to all herd bulls at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         polled_sire_count_message = True
+        fetch_recessives_message = True
         for herd in xrange(base_herds):
             bull_portfolio[herd] = []
             cow_portfolio[herd] = []
 
             herd_bulls = get_herd_bulls(bulls, recessives, bull_criterion, bull_deficit,
-                                        polled_sire_count_message, bull_copies, debug)
+                                        polled_sire_count_message, bull_copies, fetch_recessives_message,
+                                        debug)
             polled_sire_count_message = False
+            fetch_recessives_message = False
 
             herd_bulls.sort(key=lambda x: x[9], reverse=True)  # Sort in descending order on TBV
             herd_bulls = herd_bulls[0:service_bulls]  # Keep the top "service_bulls" sires for use
@@ -984,7 +988,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
 
 def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use_horned',
-                   polled_sire_count_message=False, bull_copies=4, debug=False):
+                   polled_sire_count_message=False, bull_copies=4, rec_msg=False, debug=False):
 
     """Return a list of bulls for mating to a herd of cows.
 
@@ -1000,6 +1004,8 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
     :type polled_sire_count_message: boolean
     :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
     :type bull_copies: integer
+    :param rec_msg: Activate/deactivate debugging messages in fetch_recessives().
+    :type rec_msg: boolean
     :param debug: Activate/deactivate debugging messages.
     :type debug: boolean
     :return: A list of bulls for mating to cows in a herd.
@@ -1019,7 +1025,7 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
     # Use polled bulls
     if bull_criterion == 'polled':
         # Copies = 4 will select all PP and Pp bulls.
-        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=bull_copies, debug=debug)
+        mating_bulls = fetch_recessives(bulls, 'Horned', recessives, copies=bull_copies, messages=rec_msg, debug=debug)
         random.shuffle(mating_bulls)  # Randomly order bulls
         other_bulls = [bull for bull in bulls if bull not in mating_bulls]
         random.shuffle(other_bulls)
@@ -1430,7 +1436,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     return cows, bulls, dead_cows, dead_bulls
 
 
-def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=False):
+def fetch_recessives(animal_list, get_recessive, recessives, copies=0, messages=False, debug=False):
     """Loop through the provided list of animals and create a new list of animals with COPIES
     number of the minor allele.
 
@@ -1442,6 +1448,8 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
     :type recessives: dictionary
     :param copies: Boolean. Copies of the minor allele in selected animals (4 = A\_ and 5 = a\_).
     :type copies: int
+    :param messages: Activate/deactivate debugging messages in fetch_recessives().
+    :type messages: boolean
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: List of animal records.
@@ -1494,7 +1502,7 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, debug=Fal
         else:
             pass
 
-    if debug:
+    if messages:
         print '\t[fetch_recessives]: %s animals selected for %s copies of recessive %s!' % \
               ( len(selected_animals), copies, get_recessive )
 
@@ -2404,6 +2412,10 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                            polled_parms=polled_parms,
                                                                            debug=debug)
 
+    # Get the MAF for each founder generations
+    for g in xrange(-9,1,1):
+        recessives, freq_hist = update_maf(cows, bulls, g, recessives, freq_hist, show_recessives)
+
     # This is the start of the next generation
     for generation in xrange(1, gens+1):
         print '\n[run_scenario]: Beginning generation %s at %s' % (
@@ -2669,8 +2681,6 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     outline = '        percent PP:     %s\n' % polled_parms[1]
     ofh.write(outline)
     outline = '        percent Pp:     %s\n' % polled_parms[2]
-    ofh.write(outline)
-    outline = '                     %s\n' % polled_diff[1]
     ofh.write(outline)
     outline = 'percent            :\t%s\n' % percent
     ofh.write(outline)
