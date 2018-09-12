@@ -36,8 +36,6 @@ import types
 #   are about twice as inbred and twice as related as polled cows.
 #
 # + Convert animal records to dictionaries
-#
-# + add base pop gens to allele frequency history
 ###
 
 
@@ -674,7 +672,7 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls):
 
 def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, filetag='',
                        penalty=False, proxy_matings=False, bull_criterion='random', bull_deficit='use_horned',
-                       bull_copies=4, debug=False):
+                       bull_copies=4, bull_unique=False, debug=False):
     """Compute coefficients of inbreeding for each animal in the pedigree.
 
     :param cows: A list of live cow records.
@@ -701,6 +699,8 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     :type bull_deficit: string
     :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
     :type bull_copies: integer
+    :param bull_unique: Each bull portfolio should be unique.
+    :type bull_unique: boolean
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls with updated inbreeding.
@@ -715,6 +715,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             print '\t\t[compute_inbreeding]: proxy_matings  : %s' % proxy_matings
             print '\t\t[compute_inbreeding]: bull_criterion : %s' % bull_criterion
             print '\t\t[compute_inbreeding]: bull_deficit   : %s' % bull_deficit
+            print '\t\t[compute_inbreeding]: bull_unique    : %s' % bull_unique
             print '\t\t[compute_inbreeding]: debug          : %s' % debug
 
     # Now, we're going to need to construct a pedigree that includes matings of all cows in
@@ -803,13 +804,18 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         polled_sire_count_message = True
         fetch_recessives_message = True
+        bull_used = []
         for herd in xrange(base_herds):
             bull_portfolio[herd] = []
             cow_portfolio[herd] = []
 
             herd_bulls = get_herd_bulls(bulls, recessives, bull_criterion, bull_deficit,
-                                        polled_sire_count_message, bull_copies, fetch_recessives_message,
-                                        debug)
+                                        polled_sire_count_message, bull_copies,
+                                        bull_unique, bull_used,
+                                        fetch_recessives_message, debug)
+
+            bull_used.append(herd_bulls)
+
             polled_sire_count_message = False
             fetch_recessives_message = False
 
@@ -988,7 +994,8 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
 
 
 def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use_horned',
-                   polled_sire_count_message=False, bull_copies=4, rec_msg=False, debug=False):
+                   polled_sire_count_message=False, bull_copies=4, bull_unique=False,
+                   bull_used=[], rec_msg=False, debug=False):
 
     """Return a list of bulls for mating to a herd of cows.
 
@@ -1004,6 +1011,10 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
     :type polled_sire_count_message: boolean
     :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
     :type bull_copies: integer
+    :param bull_unique: Each bull portfolio should be unique.
+    :type bull_unique: boolean
+    :param bull_used: List of bulls already used for matings.
+    :type bull_used: list
     :param rec_msg: Activate/deactivate debugging messages in fetch_recessives().
     :type rec_msg: boolean
     :param debug: Activate/deactivate debugging messages.
@@ -1022,6 +1033,11 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
         print '\t\t[get_herd_bulls]: bull_deficit has a value of %s but should be \'use_horned\' or \'no_limit\', ' \
               'setting to \'no_limit\'.' % bull_deficit
 
+    # Initialize herd_bulls
+    herd_bulls = []
+    # How many bulls are needed to breed entire population to unique (non-overlapping) portfolios?
+    bull_needed = service_bulls * base_herds
+
     # Use polled bulls
     if bull_criterion == 'polled':
         # Copies = 4 will select all PP and Pp bulls.
@@ -1038,13 +1054,66 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
                     print '\t[get_herd_bulls]: Fewer polled sires (%s) than needed (%s), using horned sires, too.' % \
                           (len(mating_bulls), service_bulls)
                     polled_sire_count_message = False
-                herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
+                # If only unique bulls are desired then only take bulls that weren't already used. This may break
+                # if there are fewer bulls in the population than ( base_herds * service_bulls).
+                if bull_unique:
+                    if debug and ( len(bulls) < bull_needed ):
+                        print '\t[get_herd_bulls]: There aren\'t enough bulls in the population to breed all herds ' \
+                              'to a unique portfolio of bulls! There are %s, but %s are needed!' % ( len(bulls),
+                                                                                                     bull_needed )
+                    # Select bulls from mating_bulls that have not yet been used for mating to this herd.'
+                    herd_bulls = [bull for bull in mating_bulls if bull not in bull_used]
+                    bull_used.append(herd_bulls)
+                    # If there aren't enough bulls yet, sample more bulls from mating_bulls, allowing the re-use of
+                    # bulls.
+                    if len(herd_bulls) < service_bulls:
+                        more_bulls = [bull for bull in mating_bulls if bull not in herd_bulls]
+                        herd_bulls = herd_bulls + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+                        bull_used = bull_used + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+                    # If there still aren't enough bulls yet to complete the portfolio, randomly sample other_bulls.
+                    if len(herd_bulls) < service_bulls:
+                        herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
+                        bull_used = bull_used + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
+                # We can re-use bulls, so don't worry about uniqueness.
+                else:
+                    herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
             else:
-                herd_bulls = mating_bulls
+                # We're not using horned bulls to make up a deficit in the number of polled bulls, but we do want
+                # to restrict to unique bulls for each herd, if possible.
+                if bull_unique:
+                    herd_bulls = [bull for bull in mating_bulls if bull not in bull_used]
+                    bull_used.append(herd_bulls)
+                    # If there aren't enough bulls yet, sample more bulls from mating_bulls, allowing the re-use of
+                    # bulls.
+                    if len(herd_bulls) < service_bulls:
+                        more_bulls = [bull for bull in mating_bulls if bull not in herd_bulls]
+                        herd_bulls = herd_bulls + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+                        bull_used = bull_used + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+                # We're not using horned bulls to make up a deficit in the number of polled bulls, and we don't
+                # require unique bulls for each herd.
+                else:
+                    herd_bulls = mating_bulls
+        # There are more bulls available for mating than are needed, so we don't need to do anything special with
+        # respect to deficits.
         else:
-            herd_bulls = mating_bulls[0:service_bulls + 1]  # Select 20% at random
+            # Use unique bulls, if possible.
+            if bull_unique:
+                herd_bulls = [bull for bull in mating_bulls if bull not in bull_used]
+                bull_used.append(herd_bulls)
+                # If there aren't enough bulls yet, sample more bulls from mating_bulls, allowing the re-use of
+                # bulls.
+                if len(herd_bulls) < service_bulls:
+                    more_bulls = [bull for bull in mating_bulls if bull not in herd_bulls]
+                    herd_bulls = herd_bulls + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+                    bull_used = bull_used + more_bulls[0:(service_bulls - len(herd_bulls) + 1)]
+            # We don't care about unique bulls for each herd, re-use is okay.
+            else:
+                herd_bulls = mating_bulls[0:service_bulls + 1]  # Select 20% at random
     # The default case is 'random'.
     elif bull_criterion == 'random':
+        if debug and bull_unique:
+            print '\t[get_herd_bulls]: Unique bull portfolios are not supported when the selection criterion is ' \
+                '"random"!'
         # Sample 20% of the active bulls at random, then sort them on TBV and take the top "service_sires" bulls
         # for use in the herd.
         random.shuffle(bulls)  # Randomly order bulls
@@ -1071,7 +1140,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False, edit_sex='M',
                  flambda=25., bull_criterion='random', bull_deficit='use_horned',
-                 carrier_penalty=False, bull_copies=4):
+                 carrier_penalty=False, bull_copies=4, bull_unique=False):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -1121,6 +1190,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :rtype carrier_penalty: bool
     :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
     :type bull_copies: integer
+    :param bull_unique: Each bull portfolio should be unique.
+    :type bull_unique: boolean
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1155,6 +1226,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                                                                                                           bull_criterion=bull_criterion,
                                                                                                           bull_deficit=bull_deficit,
                                                                                                           bull_copies=bull_copies,
+                                                                                                          bull_unique=bull_unique,
                                                                                                           debug=debug)
 
     # # If the user has specified that only heterozygous or homozygous polled bulls be used then we need
@@ -2583,7 +2655,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_criterion=bull_criterion,
                                                               bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies)
+                                                              bull_copies=bull_copies,
+                                                              bull_unique=bull_unique)
 
         # The default scenario is random mating.
         else:
@@ -2738,9 +2811,11 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'bull_criterion:\t%s\n' % bull_criterion
     ofh.write(outline)
-    outline = 'carrier penalty    :\t%s\n' % carrier_penalty
+    outline = 'carrier_penalty    :\t%s\n' % carrier_penalty
     ofh.write(outline)
-    outline = 'bull copies        :\t%s\n' % bull_copies
+    outline = 'bull_copies        :\t%s\n' % bull_copies
+    ofh.write(outline)
+    outline = 'bull_unique        :\t%s\n' % bull_unique
     ofh.write(outline)
     ofh.close()
 
@@ -2789,7 +2864,7 @@ if __name__ == '__main__':
                                                         # simulation if we need/want to.
     #rng_seed = 419
     embryo_inbreeding = False   # Save file with embryo inbreeding (makes large files!!!)
-    history_freq =  'dne'       # Only write history files at the end of the simulation, not every generation.
+    history_freq =  'end'       # Only write history files at the end of the simulation, not every generation.
     show_recessives = False     # Show recessive frequencies after each round.
 
 
@@ -2817,6 +2892,7 @@ if __name__ == '__main__':
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
     bull_criterion = 'polled'      # How should the bulls be picked?
     bull_deficit =   'use_horned'  # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
+    bull_unique = False      # Create unique bull portfolios, if possible, for each herd.
     bull_copies =   4        # Genotype of polled bulls selected for mating ('homo'|'het'|'both')
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
     carrier_penalty = True   # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
