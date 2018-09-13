@@ -809,12 +809,21 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
             bull_portfolio[herd] = []
             cow_portfolio[herd] = []
 
+            if debug and len(bull_used) == 0:
+                debug_bull_used = True
+            else:
+                debug_bull_used = False
+
             herd_bulls = get_herd_bulls(bulls, recessives, bull_criterion, bull_deficit,
                                         polled_sire_count_message, bull_copies,
                                         bull_unique, bull_used,
                                         fetch_recessives_message, debug)
 
             bull_used.append(herd_bulls)
+
+            if debug_bull_used:
+                print '\t[compute_inbreeding]: %s unique herd bulls used to mate herd %s!' %
+                    ( len(bull_used), herd )
 
             polled_sire_count_message = False
             fetch_recessives_message = False
@@ -2570,7 +2579,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies)
+                                                              bull_copies=bull_copies,
+                                                              bull_unique=bull_unique)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2600,7 +2610,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               embryo_trials=embryo_trials,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies)
+                                                              bull_copies=bull_copies,
+                                                              bull_unique=bull_unique)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2627,7 +2638,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_criterion=bull_criterion,
                                                               bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies)
+                                                              bull_copies=bull_copies,
+                                                              bull_unique=bull_unique)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
