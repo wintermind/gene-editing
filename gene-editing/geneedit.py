@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import plot, hist
+import cerberus
 import copy
 import datetime
 import itertools
@@ -363,7 +364,7 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
 
 def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, recessives,
                   max_matings=50, edit_prop=[0.0, 0.0], edit_type='C', edit_trials=1,
-                  embryo_trials=1, edit_sex='M', debug=False):
+                  embryo_trials=1, edit_sex='M', calf_loss=0.0, debug=False):
 
     """Use random mating to advance the simulation by one generation.
 
@@ -393,6 +394,8 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
     :type embryo_trials: int
     :param edit_sex: The sex of animals to be edited (M = males, F = females).
     :type edit_sex: char
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
@@ -435,7 +438,8 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
                     if debug:
                         print 'bull %s (ID %s) is alive and has available matings' % (bull_to_use, bull_id)
                     # Create the resulting calf
-                    calf = create_new_calf(bulls[bull_to_use], c, recessives, next_id, generation, debug=debug)
+                    calf = create_new_calf(bulls[bull_to_use], c, recessives, next_id, generation, calf_loss,
+                                           debug=debug)
                     if debug:
                         print calf
                     if calf[4] == 'F':
@@ -500,7 +504,8 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
 
 def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generations,
                   recessives, pct=0.10, edit_prop=[0.0,0.0], edit_type='C',
-                  edit_trials=1, embryo_trials=1, edit_sex='M', debug=False):
+                  edit_trials=1, embryo_trials=1, edit_sex='M', calf_loss=0.0,
+                  debug=False):
 
     """Use truncation selection to advance the simulation by one generation.
 
@@ -530,6 +535,8 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
     :type embryo_trials: int
     :param edit_sex: The sex of animals to be edited (M = males, F = females).
     :type edit_sex: char
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
@@ -578,7 +585,8 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
                     if debug:
                         print 'bull %s (ID %s) is alive' % (bull_to_use, bull_id)
                     # Create the resulting calf
-                    calf = create_new_calf(bulls[bull_to_use], c, recessives, next_id, generation, debug=debug)
+                    calf = create_new_calf(bulls[bull_to_use], c, recessives, next_id, generation, calf_loss,
+                                           debug=debug)
                     if debug:
                         print calf
                     if calf[4] == 'F':
@@ -1141,7 +1149,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                  penalty=False, service_bulls=50, edit_prop=[0.0,0.0], edit_type='C',
                  edit_trials=1, embryo_trials=1, embryo_inbreeding=False, edit_sex='M',
                  flambda=25., bull_criterion='random', bull_deficit='use_horned',
-                 carrier_penalty=False, bull_copies=4, bull_unique=False):
+                 carrier_penalty=False, bull_copies=4, bull_unique=False, calf_loss=0.0):
 
     """Allocate matings of bulls to cows using Pryce et al.'s (2012) or Cole's (2015) method.
 
@@ -1193,6 +1201,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     :type bull_copies: integer
     :param bull_unique: Each bull portfolio should be unique.
     :type bull_unique: boolean
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
     :return: Separate lists of cows, bulls, dead cows, and dead bulls.
     :rtype: list
     """
@@ -1432,7 +1442,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                     m_mat[sorted_bulls[bidx], cow_loc] = 1
                     matings[bull_portfolio[h][sorted_bulls[bidx]][0]] += 1
                     calf = create_new_calf(bull_portfolio[h][sorted_bulls[bidx]], c, recessives, next_id,
-                                           generation, debug=debug)
+                                           generation, calf_loss, debug=debug)
                     calf_id = str(bull_portfolio[h][sorted_bulls[bidx]][0])+'__'+str(c[0])
                     # Assign inbreeding to calf
                     calf[10] = inbr[calf_id]
@@ -1590,10 +1600,11 @@ def fetch_recessives(animal_list, get_recessive, recessives, copies=0, messages=
 # recessives    : A Python list of recessives in the population
 # calf_id       : The ID to be assigned to the new animal
 # generation    : The current generation in the simulation
+# calf_loss     : Proportion of calves that die before they reach 1 year of age
 # debug         : Flag to activate/deactivate debugging messages
 
 
-def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
+def create_new_calf(sire, dam, recessives, calf_id, generation, calf_loss=0.0, debug=False):
     """Create and return a new calf record.
 
     :param sire: The father of the new animal.
@@ -1606,12 +1617,21 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
     :type calf_id: int
     :param generation: The current generation in the simulation.
     :type generation: int
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: New animal record.
     :rtype: list
     """
 
+    # Check calf_loss for permissible values
+    if calf_loss >= 0.0 and calf_loss <= 1.0:
+        pass
+    else:
+        if debug:
+            print '\t[create_new_calf]: calf_loss has a value -- %s -- that is <0.0 or >1.0. Setting to 0.0.' % calf_loss
+        calf_loss = 0.0
     # Is it a bull or a heifer?
     if bernoulli.rvs(0.50):
         sex = 'M'
@@ -1701,6 +1721,17 @@ def create_new_calf(sire, dam, recessives, calf_id, generation, debug=False):
         # These matings can produce only "Aa" genotypes.
         else:
             calf[-1].append(0)
+
+        # Does the calf die before 1 year of age?
+        if bernoulli.rvs(calf_loss):
+            if debug:
+                print '\t[create_new_calf]: Calf %s born to bull %s and cow %s died ' \
+                      'before reaching 1 year of age!' % (calf_id, sire[0], dam[0])
+            calf[6] = 'D'  # The calf is dead
+            calf[7] = 'C'  # Because of calfhood disease, etc.
+            calf[8] = generation  # During Year 1 of life
+        else:
+            pass
 
         # Update edit status record
         calf[11].append(0)
@@ -2076,9 +2107,10 @@ def age_distn(animals, generation, show=True):
 # 1.  Cows cannot be more than 5 years old
 # 2.  There is an [optional] involuntary cull at a user-specified rate 
 # 3.  After that, cows are culled at random to get down to the maximum herd size
+# 4.  Cows may be culled due to complications during the dehorning process (beef scenario)
 
 
-def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=False):
+def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, dehorning_loss=0.0, debug=False):
 
     """Cull excess and old cows from the population.
 
@@ -2092,6 +2124,8 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
     :type max_cows: int
     :param culling_rate: The proportion of cows culled involuntarily each generation.
     :type culling_rate: float
+    :param dehorning_loss: The proportion of cows that die during dehorning.
+    :type dehorning_loss: float
     :param debug: Boolean. Activate/deactivate debugging messages.
     :type debug: bool
     :return: Lists of live and dead cows.
@@ -2108,6 +2142,13 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
     if debug:
         print "[cull_cows]: Computing age distribution."
         age_distn(cows, generation)
+    # Check calf_loss for permissible values
+    if dehorning_loss >= 0.0 and dehorning_loss <= 1.0:
+        pass
+    else:
+        if debug:
+            print '[cull_cows]: dehorning_loss has a value -- %s -- that is <0.0 or >1.0. Setting to 0.0.' % dehorning_loss
+            dehorning_loss = 0.0
     # This is the age cull
     n_culled = 0
     for c in cows:
@@ -2126,7 +2167,7 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
         for c in cows:
             if random.uniform(0, 1) < culling_rate:
                 c[6] = 'D'             # This cow is dead
-                c[7] = 'C'             # Because of involuntary culling
+                c[7] = 'I'             # Because of involuntary culling
                 c[8] = generation      # In the current generation
                 dead_cows.append(c)    # Add it to the dead cows list
                 n_culled += 1
@@ -2146,7 +2187,7 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
     elif len(cows) < max_cows:
         if debug:
             print '\t[cull_cows]: No cows were culled to maintain herd size in generation %s (n<=max_cows)' % generation
-        return cows, dead_cows
+    #    return cows, dead_cows
     # If this culling is necessary then we need to update the records of the
     # culled bulls and move them into the dead_bulls list.
     else:
@@ -2159,7 +2200,18 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, debug=F
         cows = cows[c_diff:]
         if debug: print '\t[cull_cows]: %s cows were culled to maintain herd size in generation %s (cows>max_cows)'\
                         % (c_diff, generation)
-        return cows, dead_cows
+
+    # Does the cow die during dehorning?
+    for c in cows:
+        if bernoulli.rvs(dehorning_loss):
+            c[6] = 'D'  # The calf is dead
+            c[7] = 'H'  # Because of dehorning complications
+            c[8] = generation  # In the current generation
+            dead_cows.append(c)
+    # Now we have to remove the dead animals from the cows list
+    cows[:] = [c for c in cows if c[6] == 'A']
+
+    return cows, dead_cows
 
 
 # Compute simple summary statistics of TBV for the list of animals passed in:
@@ -2302,10 +2354,29 @@ def update_maf(cows, bulls, generation, recessives, freq_hist, show_recessives=F
     return recessives, freq_hist
 
 
+def disposal_reasons(dead_bulls, dead_cows):
+
+    """Produce a table showing the reasons that animals died.
+
+\   :param dead_cows: A list of dead cow records.
+    :type dead_cows: list
+    :param dead_bulls: A list of dead bull records.
+    :type dead_bulls: list
+    :return: Nothing is returned from this function.
+    :rtype: None
+    """
+
+    labels = ['animal', 'sire', 'dam', 'born', 'sex', 'herd', 'alive', 'term code', 'term date',
+              'TBV', 'inbreeding', 'edited', 'n_edits', 'n_ets', 'genotype']
+    df = pd.DataFrame.from_records([dead_bulls, dead_cows], columns=labels)
+
+    print df.head()
+
+    return
+
+
 # We're going to go ahead and write files containing various pieces
 # of information from the simulation.
-
-
 def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=''):
 
     """Write output files, including animal records, simulation parameters, and recessive information.
@@ -2397,7 +2468,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  history_freq='end', edit_prop=[0.0,0.0], edit_type='C', edit_trials=1,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
                  bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_copies=4,
-                 polled_parms=[0.0,0.0,0.0], bull_unique=False):
+                 polled_parms=[0.0,0.0,0.0], bull_unique=False, calf_loss=0.0,
+                 dehorning_loss=0.0, culling_rate=0.0, check_all_parms=True):
 
     """Main loop for individual simulation scenarios.
 
@@ -2464,11 +2536,31 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type bull_copies: integer
     :param polled_parms: Proportion of polled bulls, proportion of PP, and proportion of Pp bulls.
     :type polled_parms: list of floats
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
+    :param dehorning_loss: The proportion of cows that die during dehorning.
+    :type dehorning_loss: float
+    :param culling_rate: The proportion of cows culled involuntarily each generation.
+    :type culling_rate: float
+    :param check_all_parms: Perform a formal check on all parameters.
+    :type check_all_parms: bool
     :rtype: None
     """
 
     # Initialize the PRNG.
     random.seed(rng_seed)
+
+    # Before we do anything else, check the parameters
+    if check_all_parms:
+        check_result = check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gens, percent, base_bulls,
+                     base_cows, service_bulls, base_herds, max_bulls, max_cows, debug, filetag,
+                     recessives, max_matings, rng_seed, show_recessives, history_freq, edit_prop,
+                     edit_type, edit_trials, embryo_trials, embryo_inbreeding, flambda, bull_criterion,
+                     bull_deficit, base_polled, carrier_penalty, bull_copies, polled_parms, bull_unique,
+                     calf_loss, dehorning_loss, culling_rate)
+        if not check_result:
+            print '[run_scenario]: Errors in simulation parameters, cannot continue, stopping program.'
+            sys.exit(0)
 
     # This is the initial setup
     print '[run_scenario]: Setting-up the simulation at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -2522,6 +2614,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                edit_type=edit_type,
                                                                edit_trials=edit_trials,
                                                                embryo_trials=embryo_trials,
+                                                               calf_loss=calf_loss,
                                                                debug=debug)
 
         # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
@@ -2542,6 +2635,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                    edit_type=edit_type,
                                                                    edit_trials=edit_trials,
                                                                    embryo_trials=embryo_trials,
+                                                                   calf_loss=calf_loss,
                                                                    debug=debug)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
@@ -2572,7 +2666,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
                                                               bull_copies=bull_copies,
-                                                              bull_unique=bull_unique)
+                                                              bull_unique=bull_unique,
+                                                              calf_loss=calf_loss)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2603,7 +2698,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               flambda=flambda,
                                                               carrier_penalty=carrier_penalty,
                                                               bull_copies=bull_copies,
-                                                              bull_unique=bull_unique)
+                                                              bull_unique=bull_unique,
+                                                              calf_loss=calf_loss)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2631,7 +2727,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
                                                               bull_copies=bull_copies,
-                                                              bull_unique=bull_unique)
+                                                              bull_unique=bull_unique,
+                                                              calf_loss=calf_loss)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
@@ -2660,7 +2757,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_deficit=bull_deficit,
                                                               carrier_penalty=carrier_penalty,
                                                               bull_copies=bull_copies,
-                                                              bull_unique=bull_unique)
+                                                              bull_unique=bull_unique,
+                                                              calf_loss=calf_loss)
 
         # The default scenario is random mating.
         else:
@@ -2674,6 +2772,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                max_matings=max_matings,
                                                                edit_prop=edit_prop,
                                                                edit_type=edit_type,
+                                                               calf_loss=calf_loss,
                                                                debug=debug)
 
         print
@@ -2698,7 +2797,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         bcow_count, bcow_min, bcow_max, bcow_mean, bcow_var, bcow_std = animal_summary(cows)
         print '\n[run_scenario]: Culling cows at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        cows, dead_cows = cull_cows(cows, dead_cows, generation, max_cows, debug=debug)
+        cows, dead_cows = cull_cows(cows, dead_cows, generation, max_cows, culling_rate, dehorning_loss, debug=debug)
         print '\n[run_scenario]: Computing summary statistics for cows after culling at %s' % \
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         acow_count, acow_min, acow_max, acow_mean, acow_var, acow_std = animal_summary(cows)
@@ -2821,6 +2920,12 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write(outline)
     outline = 'bull_unique        :\t%s\n' % bull_unique
     ofh.write(outline)
+    outline = 'calf_loss          :\t%s\n' % calf_loss
+    ofh.write(outline)
+    outline = 'dehorning_loss     :\t%s\n' % dehorning_loss
+    ofh.write(outline)
+    outline = 'culling_rate       :\t%s\n' % culling_rate
+    ofh.write(outline)
     ofh.close()
 
     # Save the allele frequency history
@@ -2855,6 +2960,168 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     plt.savefig(filename, bbox_inches="tight")
     plt.clf()
 
+# Print death codes in caseyou can't remember them all
+
+
+def print_death_codes():
+    print """Codes used to indicate reasons for animal death:
+    \tA = Animal culled for age
+    \tC = Animal died as a calf
+    \tH = Animal died due to complications from dehorning
+    \tI = Animal involuntarily culled
+    \tN = Animal culled to maintain population size
+    \tR = Animal killed by recessive genetic condition
+    """
+
+def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gens, percent, base_bulls,
+                     base_cows, service_bulls, base_herds, max_bulls, max_cows, debug, filetag,
+                     recessives, max_matings, rng_seed, show_recessives, history_freq, edit_prop,
+                     edit_type, edit_trials, embryo_trials, embryo_inbreeding, flambda, bull_criterion,
+                     bull_deficit, base_polled, carrier_penalty, bull_copies, polled_parms, bull_unique,
+                     calf_loss, dehorning_loss, culling_rate):
+
+    """Chech simulation parameters to ensure they contain permissible values.
+
+    :param scenario: The mating strategy to use in the current scenario ('random'|'trunc'|'pryce').
+    :type scenario: string
+    :param cow_mean: Average base population cow TBV.
+    :type cow_mean: float
+    :param genetic_sd: Additive genetic SD of the simulated trait.
+    :type genetic_sd: float
+    :param bull_diff: Differential between base cows and bulls, in genetic SD.
+    :type bull_diff: float
+    :parm polled_diff: Difference between Pp and pp bulls, and PP and pp bulls, in genetic SD.
+    :type polled_diff: List of floats
+    :param gens: Total number of generations to run the simulation.
+    :type gens: int
+    :param percent: Percent of bulls to use as sires in the truncation mating scenario.
+    :type percent: float
+    :base_bulls: The number of bulls in the base population.
+    :type base_bulls: int
+    :param base_cows: The number of cows in the base population.
+    :type base_cows: int
+    :param service_bulls: The number of herd bulls to use in each herd each generation.
+    :type service_bulls: int
+    :param base_herds: The number of herds in the population.
+    :type base_herds: int
+    :param max_bulls: The maximum number of bulls that can be alive at one time.
+    :type max_bulls: int
+    :param max_cows: The maximum number of cows that can be alive at one time.
+    :type max_cows: int
+    :param debug: Boolean. Activate/deactivate debugging messages.
+    :type debug: bool
+    :param filetag: Added to file names to describe the analysis a file is associated with.
+    :type filetag: string
+    :param recessives: Dictionary of recessive alleles in the population.
+    :type recessives: dictionary
+    :param max_matings: The maximum number of matings permitted for each bull.
+    :type max_matings: int
+    :param show_recessives: Boolean. Print summary information for each recessive.
+    :type show_recessives: bool
+    :param history_freq: When 'end', save only files from final generation, else save every generation.
+    :type history_freq: string
+    :param edit_prop: The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %).
+    :type edit_prop: list
+    :param edit_type: Tool used to edit genes: 'Z' = ZFN, 'T' = TALEN, 'C' = CRISPR, 'P' = no errors.
+    :type edit_type: char
+    :param edit_trials: The number of attempts to edit an embryo successfully (-1 = repeat until success).
+    :type edit_trials: int
+    :param embryo_trials: The number of attempts to transfer an edited embryo successfully (-1 = repeat until success).
+    :type embryo_trials: int
+    :param embryo_inbreeding: Write a file of coefficients of inbreeding for all possible bull-by-cow matings.
+    :type embryo_inbreeding: boolean
+    :param flambda: Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
+    :type flambda: float
+    :param bull_criterion: Criterion used to select the group of bulls for mating.
+    :type bull_criterion: string
+    :param bull_deficit: Manner of handling too few bulls for matings: 'use_horned' or 'no_limit'.
+    :type bull_deficit: string
+    :param base_polled: Genotype of polled animals in the base population ('homo'|'het'|'both')
+    :type base_polled: string
+    :return: Nothing is returned from this function.
+    :param carrier_penalty: Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
+    :rtype carrier_penalty: bool
+    :param bull_copies: Genotype of polled bulls selected for mating (0|1|2|4|5|6)
+    :type bull_copies: integer
+    :param polled_parms: Proportion of polled bulls, proportion of PP, and proportion of Pp bulls.
+    :type polled_parms: list of floats
+    :param calf_loss: Proportion of calves that die before they reach 1 year of age.
+    :type calf_loss: float
+    :param dehorning_loss: The proportion of cows that die during dehorning.
+    :type dehorning_loss: float
+    :param culling_rate: The proportion of cows culled involuntarily each generation.
+    :type culling_rate: float
+    :rtype: None
+    """
+
+    # Setup Cerberus rules for validating parameters
+    ge_schema = {
+        'scenario': {'type': 'string', 'allowed': ['random', 'truncation', 'pryce', 'pryce_r',
+                                                   'polled', 'polled_r']},
+        'cow_mean': {'type': 'number'},
+        'genetic_sd': {'type': 'number'},
+        'bull_diff': {'type': 'number'},
+        'polled_diff': {'type': 'list', 'minlength': 2, 'maxlength': 2, 'schema': {'type': 'number'}},
+        'gens': {'type': 'integer', 'min': 0},
+        'percent': {'type': 'float', 'min': 0.0, 'max': 1.0},
+        'base_bulls': {'type': 'integer', 'min': 0},
+        'base_cows': {'type': 'integer', 'min': 0},
+        'service_bulls': {'type': 'integer', 'min': 0},
+        'base_herds': {'type': 'integer', 'min': 0},
+        'max_bulls': {'type': 'integer', 'min': 0},
+        'max_cows': {'type': 'integer', 'min': 0},
+        'debug': {'type': 'boolean'},
+        'filetag': {'type': 'string', 'empty': True},
+        'recessives': {'type': 'dict'},
+        'max_matings': {'type': 'integer', 'min': 0},
+        'rng_seed': {'type': ['string', 'integer']},
+        'show_recessives': {'type': 'boolean'},
+        'history_freq': {'type': 'string'},
+        'edit_prop': {'type': 'list', 'minlength': 2, 'maxlength': 2,
+                      'schema': {'type': 'float', 'min': 0.0, 'max': 1.0}},
+        'edit_type': {'type': 'string', 'allowed': ['Z', 'T', 'C', 'P']},
+        'edit_trials': {'type': 'integer', 'min': -1},
+        'embryo_trials': {'type': 'integer', 'min': -1},
+        'embryo_inbreeding': {'type': 'boolean'},
+        'flambda': {'type': 'number'},
+        'bull_criterion': {'type': 'string', 'allowed': ['polled', 'random']},
+        'bull_deficit': {'type': 'string', 'allowed': ['use_horned', 'no_limit']},
+        'base_polled': {'type': 'string', 'allowed': ['homo', 'het', 'both']},
+        'carrier_penalty': {'type': 'boolean'},
+        'bull_copies': {'type': 'integer'},
+        'polled_parms': {'type': 'list', 'minlength': 3, 'maxlength': 3,
+                      'schema': {'type': 'float', 'min': 0.0, 'max': 1.0}},
+        'bull_unique': {'type': 'boolean'},
+        'calf_loss': {'type': 'float', 'min': 0.0, 'max': 1.0},
+        'dehorning_loss': {'type': 'float', 'min': 0.0, 'max': 1.0},
+        'culling_rate': {'type': 'float', 'min': 0.0, 'max': 1.0},
+              }
+
+    ge_document = { 'scenario': scenario, 'cow_mean': cow_mean, 'genetic_sd': genetic_sd,
+                    'bull_diff': bull_diff, 'polled_diff': polled_diff, 'gens': gens,
+                    'percent': percent, 'base_bulls': base_bulls, 'base_cows': base_cows,
+                    'service_bulls': service_bulls, 'base_herds': base_herds, 'max_bulls': max_bulls,
+                    'max_cows': max_cows, 'debug': debug, 'filetag': filetag, 'recessives': recessives,
+                    'max_matings': max_matings, 'rng_seed': rng_seed, 'show_recessives': show_recessives,
+                    'history_freq': history_freq, 'edit_prop': edit_prop, 'edit_type': edit_type,
+                    'edit_trials': edit_trials, 'embryo_trials': embryo_trials, 'embryo_inbreeding': embryo_inbreeding,
+                    'flambda': flambda, 'bull_criterion': bull_criterion, 'bull_deficit': bull_deficit,
+                    'base_polled': base_polled, 'carrier_penalty': carrier_penalty, 'bull_copies': bull_copies,
+                    'polled_parms': polled_parms, 'bull_unique': bull_unique, 'calf_loss': calf_loss,
+                    'dehorning_loss': dehorning_loss, 'culling_rate': culling_rate}
+
+    ge_validator = cerberus.Validator(ge_schema)
+    ge_result = ge_validator(ge_document)
+    if not ge_result:
+        print '[check_parameters]: Validation failed, errors follow.'
+        print '\n\tParameter\tError'
+        print '\t' + '-'*60
+        for ge_k, ge_v in ge_validator.errors.iteritems():
+            print '\t%s\t%s' % ( ge_k, ge_v )
+        print ''
+
+    return ge_result
+
 def jump():
     pass
 
@@ -2870,6 +3137,7 @@ if __name__ == '__main__':
     embryo_inbreeding = False   # Save file with embryo inbreeding (makes large files!!!)
     history_freq =  'end'       # Only write history files at the end of the simulation, not every generation.
     show_recessives = False     # Show recessive frequencies after each round.
+    check_all_parms = True      # Perform a formal check on all parameters.
 
 
     # -- Base Population Parameters
@@ -2900,6 +3168,9 @@ if __name__ == '__main__':
     bull_copies =   0        # Genotype of polled bulls selected for mating ('homo'|'het'|'both') # 4
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
     carrier_penalty = True   # Penalize carriers for carrying a copy of an undesirable allele (True), or not (False)
+    calf_loss = 0.1          # Rate of calfhood mortality.
+    dehorning_loss = 0.1     # Rate of mortality during dehorning.
+    culling_rate = 0.0       # Involuntary culling rate for cows.
 
 
     # -- Gene Editing Parameters
@@ -2976,4 +3247,8 @@ if __name__ == '__main__':
                  carrier_penalty=carrier_penalty,
                  bull_copies=bull_copies,
                  polled_parms=polled_parms,
-                 bull_unique=bull_unique)
+                 bull_unique=bull_unique,
+                 calf_loss=calf_loss,
+                 dehorning_loss=dehorning_loss,
+                 culling_rate=culling_rate,
+                 check_all_parms=check_all_parms)
