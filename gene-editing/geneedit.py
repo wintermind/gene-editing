@@ -37,7 +37,20 @@ import types
 #   are about twice as inbred and twice as related as polled cows.
 #
 # + Convert animal records to dictionaries
-###
+#
+# + MLM: I think the dehorning_loss needs to be restructured though. I think it's really
+#   important that the dehorning is related to the recessives (either the animal's
+#   genotype itself or based on the sire's genotype) because increasing polled frequency
+#   should then result in less mortality which does not happen in the current model. Also
+#   the dehorning_loss needs to be for both cows and bulls.
+#
+# + I'm still thinking on how to handle the nucleus/multiplier situation. I have some
+#   code that changes animal records from lists ti dictionaries, which would make it a
+#   lot easier to add properties to animals. I'm thinking about finally promoting that
+#   code (it still needs some programming and testing) and making the nucleus/multiplier
+#   status a property of animals, since they never change herds.  More work is needed on
+#   that.
+##
 
 
 def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_diff=[1.0,1.3], base_bulls=500,
@@ -2110,7 +2123,7 @@ def age_distn(animals, generation, show=True):
 # 4.  Cows may be culled due to complications during the dehorning process (beef scenario)
 
 
-def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, dehorning_loss=0.0, debug=False):
+def cull_cows(cows, dead_cows, generation, recessives, max_cows=0, culling_rate=0.0, dehorning_loss=0.0, debug=False):
 
     """Cull excess and old cows from the population.
 
@@ -2201,13 +2214,23 @@ def cull_cows(cows, dead_cows, generation, max_cows=0, culling_rate=0.0, dehorni
         if debug: print '\t[cull_cows]: %s cows were culled to maintain herd size in generation %s (cows>max_cows)'\
                         % (c_diff, generation)
 
-    # Does the cow die during dehorning?
-    for c in cows:
-        if bernoulli.rvs(dehorning_loss):
-            c[6] = 'D'  # The calf is dead
-            c[7] = 'H'  # Because of dehorning complications
-            c[8] = generation  # In the current generation
-            dead_cows.append(c)
+    # Do we know about horned status in this scenario?
+    if 'Horned' in recessives.keys():
+        # Where in the recessives list is the allele we want?
+        horned_loc = recessives.keys().index('Horned')
+        # Is the cow horned? If so, dehorn her if not pass. Polled cows shouldn't die during
+        # dehorning.
+        for c in cows:
+            # A recessive value of "-1" indicates an aa (horned) genotype.
+            if c[-1][horned_loc] == -1:
+                if bernoulli.rvs(dehorning_loss):
+                    #print '\t[cull_cows]: Cows %s was culled due to dehorning complications in generation %s' \
+                    #      % (c[0], generation)
+                    c[6] = 'D'  # The calf is dead
+                    c[7] = 'H'  # Because of dehorning complications
+                    c[8] = generation  # In the current generation
+                    dead_cows.append(c)
+
     # Now we have to remove the dead animals from the cows list
     cows[:] = [c for c in cows if c[6] == 'A']
 
@@ -2368,9 +2391,8 @@ def disposal_reasons(dead_bulls, dead_cows):
 
     labels = ['animal', 'sire', 'dam', 'born', 'sex', 'herd', 'alive', 'term code', 'term date',
               'TBV', 'inbreeding', 'edited', 'n_edits', 'n_ets', 'genotype']
-    df = pd.DataFrame.from_records([dead_bulls, dead_cows], columns=labels)
-
-    print df.head()
+    df = pd.DataFrame.from_records(dead_bulls+dead_cows, columns=labels)
+    print df.groupby(['sex', 'born', 'term code']).count()
 
     return
 
@@ -2469,7 +2491,12 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  embryo_trials=1, embryo_inbreeding=False, flambda=25., bull_criterion='polled',
                  bull_deficit='horned', base_polled='homo', carrier_penalty=False, bull_copies=4,
                  polled_parms=[0.0,0.0,0.0], bull_unique=False, calf_loss=0.0,
-                 dehorning_loss=0.0, culling_rate=0.0, check_all_parms=True):
+                 dehorning_loss=0.0, culling_rate=0.0, check_all_parms=True, show_disposals=True,
+                 use_nucleus=False, nucleus_cow_mean=200., nucleus_genetic_sd=200., nucleus_bull_diff=1.5,
+                 nucleus_base_bulls=100, nucleus_base_cows=5000, nucleus_base_herds=10,
+                 nucleus_service_bulls=15, nucleus_max_bulls=750, nucleus_max_cows=10000,
+                 nucleus_max_matings=5000, nucleus_bulls_to_move=500
+                ):
 
     """Main loop for individual simulation scenarios.
 
@@ -2544,6 +2571,32 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type culling_rate: float
     :param check_all_parms: Perform a formal check on all parameters.
     :type check_all_parms: bool
+    :param show_disposals: Print a summary of disposal reasons following the history_freq flag.
+    :type show_disposals: bool
+    :param use_nucleus: Create and use nucleus herds to propagate elite genetics
+    :type use_nucleus: bool
+    :param nucleus_cow_mean: Average nucleus cow TBV.
+    :type nucleus_cow_mean: float
+    :param nucleus_genetic_sd: Additive genetic SD of the simulated trait.
+    :type nucleus_genetic_sd: float
+    :param nucleus_bull_diff: Differential between nucleus cows and bulls, in genetic SD
+    :type nucleus_bull_diff: float
+    :param nucleus_base_bulls: Initial number of bulls in nucleus herds
+    :type nucleus_base_bulls: int
+    :param nucleus_base_cows: Initial number of cows in nucleus herds
+    :type nucleus_base_cows: int
+    :param nucleus_base_herds: Number of nucleus herds in the population
+    :type nucleus_base_herds: int
+    :param nucleus_service_bulls: Number of bulls to use in each nucleus herd each generation.
+    :type nucleus_service_bulls: int
+    :param nucleus_max_bulls: Maximum number of live bulls to keep each generation in nucleus herds
+    :type nucleus_max_bulls: int
+    :param nucleus_max_cows: Maximum number of live cows to keep each generation in nucleus herds
+    :type nucleus_max_cows: int
+    :param nucleus_max_matings: The maximum number of matings permitted for each nucleus herd bull
+    :type nucleus_max_matings: int
+    :param nucleus_bulls_to_move: The number of bulls to move from nucleus herds to the multiplier herds each year
+    :type nucleus_bulls_to_move: int
     :rtype: None
     """
 
@@ -2557,7 +2610,10 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                      recessives, max_matings, rng_seed, show_recessives, history_freq, edit_prop,
                      edit_type, edit_trials, embryo_trials, embryo_inbreeding, flambda, bull_criterion,
                      bull_deficit, base_polled, carrier_penalty, bull_copies, polled_parms, bull_unique,
-                     calf_loss, dehorning_loss, culling_rate)
+                     calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
+                     nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
+                     nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move)
         if not check_result:
             print '[run_scenario]: Errors in simulation parameters, cannot continue, stopping program.'
             sys.exit(0)
@@ -2797,7 +2853,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         bcow_count, bcow_min, bcow_max, bcow_mean, bcow_var, bcow_std = animal_summary(cows)
         print '\n[run_scenario]: Culling cows at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        cows, dead_cows = cull_cows(cows, dead_cows, generation, max_cows, culling_rate, dehorning_loss, debug=debug)
+        cows, dead_cows = cull_cows(cows, dead_cows, generation, recessives, max_cows, culling_rate, dehorning_loss, debug=debug)
         print '\n[run_scenario]: Computing summary statistics for cows after culling at %s' % \
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         acow_count, acow_min, acow_max, acow_mean, acow_var, acow_std = animal_summary(cows)
@@ -2828,10 +2884,14 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         print '\n[run_scenario]: Writing history files at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         if history_freq == 'end' and generation == gens:
             write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag)
+            if show_disposals:
+                disposal_reasons(dead_bulls, dead_cows)
         elif history_freq == 'end' and generation != gens:
             pass
         else:
             write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag)
+            if show_disposals:
+                disposal_reasons(dead_bulls, dead_cows)
 
     # Save the simulation parameters so that we know what we did.
     outfile = 'simulation_parameters%s.txt' % filetag
@@ -2960,7 +3020,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     plt.savefig(filename, bbox_inches="tight")
     plt.clf()
 
-# Print death codes in caseyou can't remember them all
+# Print death codes in case you can't remember them all I know I can't)
 
 
 def print_death_codes():
@@ -2978,9 +3038,12 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
                      recessives, max_matings, rng_seed, show_recessives, history_freq, edit_prop,
                      edit_type, edit_trials, embryo_trials, embryo_inbreeding, flambda, bull_criterion,
                      bull_deficit, base_polled, carrier_penalty, bull_copies, polled_parms, bull_unique,
-                     calf_loss, dehorning_loss, culling_rate):
+                     calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
+                     nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
+                     nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move):
 
-    """Chech simulation parameters to ensure they contain permissible values.
+    """Check simulation parameters to ensure they contain permissible values.
 
     :param scenario: The mating strategy to use in the current scenario ('random'|'trunc'|'pryce').
     :type scenario: string
@@ -3050,7 +3113,34 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
     :param dehorning_loss: The proportion of cows that die during dehorning.
     :type dehorning_loss: float
     :param culling_rate: The proportion of cows culled involuntarily each generation.
+    :param show_disposals: Print a summary of disposal reasons following the history_freq flag.
+    :type show_disposals: bool
+    :param use_nucleus: Create and use nucleus herds to propagate elite genetics
+    :type use_nucleus: bool
+    :param nucleus_cow_mean: Average nucleus cow TBV.
+    :type nucleus_cow_mean: float
+    :param nucleus_genetic_sd: Additive genetic SD of the simulated trait.
+    :type nucleus_genetic_sd: float
+    :param nucleus_bull_diff: Differential between nucleus cows and bulls, in genetic SD
+    :type nucleus_bull_diff: float
+    :param nucleus_base_bulls: Initial number of bulls in nucleus herds
+    :type nucleus_base_bulls: int
+    :param nucleus_base_cows: Initial number of cows in nucleus herds
+    :type nucleus_base_cows: int
+    :param nucleus_base_herds: Number of nucleus herds in the population
+    :type nucleus_base_herds: int
+    :param nucleus_service_bulls: Number of bulls to use in each nucleus herd each generation.
+    :type nucleus_service_bulls: int
+    :param nucleus_max_bulls: Maximum number of live bulls to keep each generation in nucleus herds
+    :type nucleus_max_bulls: int
+    :param nucleus_max_cows: Maximum number of live cows to keep each generation in nucleus herds
+    :type nucleus_max_cows: int
+    :param nucleus_max_matings: The maximum number of matings permitted for each nucleus herd bull
+    :type nucleus_max_matings: int
+    :param nucleus_bulls_to_move: The number of bulls to move from nucleus herds to the multiplier herds each year
+    :type nucleus_bulls_to_move: int
     :type culling_rate: float
+
     :rtype: None
     """
 
@@ -3095,7 +3185,20 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
         'calf_loss': {'type': 'float', 'min': 0.0, 'max': 1.0},
         'dehorning_loss': {'type': 'float', 'min': 0.0, 'max': 1.0},
         'culling_rate': {'type': 'float', 'min': 0.0, 'max': 1.0},
-              }
+        'show_disposals': {'type': 'boolean'},
+        'use_nucleus': {'type': 'boolean'},
+        'nucleus_cow_mean': {'type': 'number'},
+        'nucleus_genetic_sd': {'type': 'number'},
+        'nucleus_bull_diff': {'type': 'number'},
+        'nucleus_base_bulls': {'type': 'integer', 'min': 0},
+        'nucleus_base_cows': {'type': 'integer', 'min': 0},
+        'nucleus_base_herds': {'type': 'integer', 'min': 0},
+        'nucleus_service_bulls': {'type': 'integer', 'min': 0},
+        'nucleus_max_bulls': {'type': 'integer', 'min': 0},
+        'nucleus_max_cows': {'type': 'integer', 'min': 0},
+        'nucleus_max_matings': {'type': 'integer', 'min': 0},
+        'nucleus_bulls_to_move': {'type': 'integer', 'min': 0},
+    }
 
     ge_document = { 'scenario': scenario, 'cow_mean': cow_mean, 'genetic_sd': genetic_sd,
                     'bull_diff': bull_diff, 'polled_diff': polled_diff, 'gens': gens,
@@ -3108,7 +3211,14 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
                     'flambda': flambda, 'bull_criterion': bull_criterion, 'bull_deficit': bull_deficit,
                     'base_polled': base_polled, 'carrier_penalty': carrier_penalty, 'bull_copies': bull_copies,
                     'polled_parms': polled_parms, 'bull_unique': bull_unique, 'calf_loss': calf_loss,
-                    'dehorning_loss': dehorning_loss, 'culling_rate': culling_rate}
+                    'dehorning_loss': dehorning_loss, 'culling_rate': culling_rate, 'show_disposals': show_disposals,
+                    'use_nucleus': use_nucleus, 'nucleus_cow_mean': nucleus_cow_mean,
+                    'nucleus_genetic_sd': nucleus_genetic_sd, 'nucleus_bull_diff': nucleus_bull_diff,
+                    'nucleus_base_bulls': nucleus_base_bulls, 'nucleus_base_cows': nucleus_base_cows,
+                    'nucleus_base_herds': nucleus_base_herds, 'nucleus_service_bulls': nucleus_service_bulls,
+                    'nucleus_max_bulls': nucleus_max_bulls, 'nucleus_max_cows': nucleus_max_cows,
+                    'nucleus_max_matings': nucleus_max_matings, 'nucleus_bulls_to_move': nucleus_bulls_to_move,
+    }
 
     ge_validator = cerberus.Validator(ge_schema)
     ge_result = ge_validator(ge_document)
@@ -3135,9 +3245,10 @@ if __name__ == '__main__':
                                                         # simulation if we need/want to.
     #rng_seed = 419
     embryo_inbreeding = False   # Save file with embryo inbreeding (makes large files!!!)
-    history_freq =  'end'       # Only write history files at the end of the simulation, not every generation.
+    history_freq =  'gen'       # Only write history files at the end of the simulation, not every generation.
     show_recessives = False     # Show recessive frequencies after each round.
     check_all_parms = True      # Perform a formal check on all parameters.
+    show_disposals = True       # Print the frequency of disposals by reason.
 
 
     # -- Base Population Parameters
@@ -3172,6 +3283,20 @@ if __name__ == '__main__':
     dehorning_loss = 0.1     # Rate of mortality during dehorning.
     culling_rate = 0.0       # Involuntary culling rate for cows.
 
+
+    # -- Nucleus Herd Parameters
+    use_nucleus =   False          # Create and use nucleus herds to propagate elite genetics
+    nucleus_cow_mean =      200.   # Average nucleus cow TBV.
+    nucleus_genetic_sd =    200.   # Additive genetic SD of the simulated trait.
+    nucleus_bull_diff =     1.5    # Differential between nucleus cows and bulls, in genetic SD
+    nucleus_base_bulls =    100    # Initial number of bulls in nucleus herds
+    nucleus_base_cows =     5000   # Initial number of cows in nucleus herds
+    nucleus_base_herds =    10     # Number of nucleus herds in the population
+    nucleus_service_bulls = 15     # Number of bulls to use in each nucleus herd each generation.
+    nucleus_max_bulls =     750    # Maximum number of live bulls to keep each generation in nucleus herds
+    nucleus_max_cows =      10000  # Maximum number of live cows to keep each generation in nucleus herds
+    nucleus_max_matings =   5000   # The maximum number of matings permitted for each nucleus herd bull
+    nucleus_bulls_to_move = 500    # The number of bulls to move from nucleus herds to the multiplier herds each year
 
     # -- Gene Editing Parameters
     edit_prop =     [0.10, 0.01]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
