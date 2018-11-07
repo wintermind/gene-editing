@@ -2495,7 +2495,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  use_nucleus=False, nucleus_cow_mean=200., nucleus_genetic_sd=200., nucleus_bull_diff=1.5,
                  nucleus_base_bulls=100, nucleus_base_cows=5000, nucleus_base_herds=10,
                  nucleus_service_bulls=15, nucleus_max_bulls=750, nucleus_max_cows=10000,
-                 nucleus_max_matings=5000, nucleus_bulls_to_move=500
+                 nucleus_max_matings=5000, nucleus_bulls_to_move=500, nucleus_filetag='',
                 ):
 
     """Main loop for individual simulation scenarios.
@@ -2597,6 +2597,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type nucleus_max_matings: int
     :param nucleus_bulls_to_move: The number of bulls to move from nucleus herds to the multiplier herds each year
     :type nucleus_bulls_to_move: int
+    :param nucleus_filetag: Added to file names to describe the analysis a nucleus herd file is associated with.
+    :type nucleus_filetag: string
     :rtype: None
     """
 
@@ -2613,7 +2615,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                      calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
                      nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
                      nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
-                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move)
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag)
         if not check_result:
             print '[run_scenario]: Errors in simulation parameters, cannot continue, stopping program.'
             sys.exit(0)
@@ -2633,14 +2635,36 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                            polled_parms=polled_parms,
                                                                            debug=debug)
 
+    # This is the set-up for nucleus herds
+    if use_nucleus:
+        nucleus_recessives = copy.copy(recessives)
+        print '[run_scenario]: Setting-up nucleus herds at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls, nucleus_freq_hist = create_base_population(
+            cow_mean=nucleus_cow_mean,
+            genetic_sd=nucleus_genetic_sd,
+            bull_diff=nucleus_bull_diff,
+            polled_diff=polled_diff,
+            base_bulls=nucleus_base_bulls,
+            base_cows=nucleus_base_cows,
+            base_herds=nucleus_base_herds,
+            recessives=nucleus_recessives,
+            rng_seed=rng_seed,
+            base_polled=base_polled,
+            polled_parms=polled_parms,
+            debug=debug)
+
     # Get the MAF for each founder generations
     for g in xrange(-9,1,1):
         recessives, freq_hist = update_maf(cows, bulls, g, recessives, freq_hist, show_recessives)
+        if use_nucleus:
+            nucleus_recessives, nucleus_freq_hist = update_maf(nucleus_cows, nucleus_bulls, g, nucleus_recessives,
+                                                               nucleus_freq_hist, show_recessives)
 
     # This is the start of the next generation
     for generation in xrange(1, gens+1):
         print '\n[run_scenario]: Beginning generation %s at %s' % (
             generation, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+
         # First, mate the animals, which creates new offspring
         print
         print '\tGeneration %s' % generation
@@ -2650,6 +2674,18 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
               (len(cows), len(bulls), len(cows)+len(bulls),
                len(dead_cows), len(dead_bulls),
                len(dead_cows)+len(dead_bulls))
+
+        # If we're using nucleus herds, mate them, too
+        if use_nucleus:
+            print
+            print '\tNucleus Herds Generation %s' % generation
+            print '\t\t              \tLive\tLive \tLive \tDead\tDead \tDead'
+            print '\t\t              \tNucl\tNucl \tNucl \tNucl\tNucl \tNucl'
+            print '\t\t              \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
+            print '\t\tBefore mating:\t%s\t%s\t%s\t%s\t%s\t%s' % \
+                  (len(nucleus_cows), len(nucleus_bulls), len(nucleus_cows) + len(nucleus_bulls),
+                   len(nucleus_dead_cows), len(nucleus_dead_bulls),
+                   len(nucleus_dead_cows) + len(nucleus_dead_bulls))
 
         # This is the code that handles the mating scenarios
 
@@ -2673,6 +2709,25 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                calf_loss=calf_loss,
                                                                debug=debug)
 
+            if use_nucleus:
+                print '\n[run_scenario]: Mating nucleus cows randomly at %s' % \
+                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = random_mating(
+                    cows=nucleus_cows,
+                    bulls=nucleus_bulls,
+                    dead_cows=nucleus_dead_cows,
+                    dead_bulls=nucleus_dead_bulls,
+                    generation=generation,
+                    generations=gens,
+                    recessives=nucleus_recessives,
+                    max_matings=nucleus_max_matings,
+                    edit_prop=edit_prop,
+                    edit_type=edit_type,
+                    edit_trials=edit_trials,
+                    embryo_trials=embryo_trials,
+                    calf_loss=calf_loss,
+                    debug=debug)
+
         # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
         # population with no limit on the number of matings allowed. This is a simple
         # example of truncation selection.
@@ -2693,6 +2748,25 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                    embryo_trials=embryo_trials,
                                                                    calf_loss=calf_loss,
                                                                    debug=debug)
+
+            if use_nucleus:
+                print '\n[run_scenario]: Mating nucleus cows using truncation selection at %s' % \
+                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = truncation_mating(
+                    cows=nucleus_cows,
+                    bulls=nucleus_bulls,
+                    dead_cows=nucleus_dead_cows,
+                    dead_bulls=nucleus_dead_bulls,
+                    generation=generation,
+                    generations=gens,
+                    recessives=nucleus_recessives,
+                    pct=percent,
+                    edit_prop=edit_prop,
+                    edit_type=edit_type,
+                    edit_trials=edit_trials,
+                    embryo_trials=embryo_trials,
+                    calf_loss=calf_loss,
+                    debug=debug)
 
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
@@ -2725,6 +2799,33 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_unique=bull_unique,
                                                               calf_loss=calf_loss)
 
+            if use_nucleus:
+                print '\n[run_scenario]: Mating nucleus cows using Pryce\'s method at %s' % \
+                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = pryce_mating(
+                    cows=nucleus_cows,
+                    bulls=nucleus_bulls,
+                    dead_cows=nucleus_dead_cows,
+                    dead_bulls=nucleus_dead_bulls,
+                    generation=generation,
+                    generations=gens,
+                    filetag=nucleus_filetag,
+                    recessives=nucleus_recessives,
+                    max_matings=nucleus_max_matings,
+                    base_herds=nucleus_base_herds,
+                    debug=debug,
+                    penalty=False,
+                    service_bulls=nucleus_service_bulls,
+                    edit_prop=edit_prop,
+                    edit_type=edit_type,
+                    edit_trials=edit_trials,
+                    embryo_trials=embryo_trials,
+                    flambda=flambda,
+                    carrier_penalty=carrier_penalty,
+                    bull_copies=bull_copies,
+                    bull_unique=bull_unique,
+                    calf_loss=calf_loss)
+
         # Bulls are mated to cows using a mate allocation strategy similar to that of
         # Pryce et al. (2012), in which the PA is discounted to account for decreased
         # fitness associated with increased rates of inbreeding. We're not using genomic
@@ -2756,6 +2857,32 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               bull_copies=bull_copies,
                                                               bull_unique=bull_unique,
                                                               calf_loss=calf_loss)
+
+            if use_nucleus:
+                print '\n[run_scenario]: Mating nucleus cows using Pryce\'s method and accounting for recessives at %s' % \
+                      datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
+                                                                  bulls=bulls,
+                                                                  dead_cows=dead_cows,
+                                                                  dead_bulls=dead_bulls,
+                                                                  generation=generation,
+                                                                  generations=gens,
+                                                                  filetag=filetag,
+                                                                  recessives=recessives,
+                                                                  max_matings=max_matings,
+                                                                  base_herds=base_herds,
+                                                                  debug=debug,
+                                                                  penalty=True,
+                                                                  service_bulls=service_bulls,
+                                                                  edit_prop=edit_prop,
+                                                                  edit_type=edit_type,
+                                                                  edit_trials=edit_trials,
+                                                                  embryo_trials=embryo_trials,
+                                                                  flambda=flambda,
+                                                                  carrier_penalty=carrier_penalty,
+                                                                  bull_copies=bull_copies,
+                                                                  bull_unique=bull_unique,
+                                                                  calf_loss=calf_loss)
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled':
@@ -2790,31 +2917,32 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         elif scenario == 'polled_r':
             print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method and accounting for recessives at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
-                                                              bulls=bulls,
-                                                              dead_cows=dead_cows,
-                                                              dead_bulls=dead_bulls,
-                                                              generation=generation,
-                                                              generations=generations,
-                                                              filetag=filetag,
-                                                              recessives=recessives,
-                                                              max_matings=max_matings,
-                                                              base_herds=base_herds,
-                                                              debug=debug,
-                                                              penalty=True,
-                                                              service_bulls=service_bulls,
-                                                              edit_prop=edit_prop,
-                                                              edit_type=edit_type,
-                                                              edit_trials=edit_trials,
-                                                              embryo_trials=embryo_trials,
-                                                              embryo_inbreeding=embryo_inbreeding,
-                                                              flambda=flambda,
-                                                              bull_criterion=bull_criterion,
-                                                              bull_deficit=bull_deficit,
-                                                              carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies,
-                                                              bull_unique=bull_unique,
-                                                              calf_loss=calf_loss)
+            nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = pryce_mating(
+                cows=nucleus_cows,
+                bulls=nucleus_bulls,
+                dead_cows=nucleus_dead_cows,
+                dead_bulls=nucleus_dead_bulls,
+                generation=generation,
+                generations=generations,
+                filetag=nucleus_filetag,
+                recessives=nucleus_recessives,
+                max_matings=nucleus_max_matings,
+                base_herds=nucleus_base_herds,
+                debug=debug,
+                penalty=True,
+                service_bulls=nucleus_service_bulls,
+                edit_prop=edit_prop,
+                edit_type=edit_type,
+                edit_trials=edit_trials,
+                embryo_trials=embryo_trials,
+                embryo_inbreeding=embryo_inbreeding,
+                flambda=flambda,
+                bull_criterion=bull_criterion,
+                bull_deficit=bull_deficit,
+                carrier_penalty=carrier_penalty,
+                bull_copies=bull_copies,
+                bull_unique=bull_unique,
+                calf_loss=calf_loss)
 
         # The default scenario is random mating.
         else:
@@ -2831,13 +2959,40 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                                calf_loss=calf_loss,
                                                                debug=debug)
 
+
+            if use_nucleus:
+                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = random_mating(
+                    cows=nucleus_cows,
+                    bulls=nucleus_bulls,
+                    dead_cows=nucleus_dead_cows,
+                    dead_bulls=nucleus_dead_bulls,
+                    generation=generation,
+                    generations=generations,
+                    recessives=nucleus_recessives,
+                    max_matings=nucleus_max_matings,
+                    edit_prop=edit_prop,
+                    edit_type=edit_type,
+                    calf_loss=calf_loss,
+                    debug=debug)
+
         print
         print '\t\t             \tLive\tLive \tLive \tDead\tDead \tDead'
         print '\t\t             \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
         print '\t\tAfter mating:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(cows), len(bulls),
                                                              len(cows)+len(bulls), len(dead_cows),
                                                              len(dead_bulls), len(dead_cows)+len(dead_bulls))
-    
+
+        if use_nucleus:
+            print
+            print '\t\t             \tLive\tLive \tLive \tDead\tDead \tDead'
+            print '\t\t             \tNucl\tNucl \tNucl \tNucl\tNucl \tNucl'
+            print '\t\t             \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
+            print '\t\tAfter mating:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(nucleus_cows), len(nucleus_bulls),
+                                                                 len(nucleus_cows) + len(nucleus_bulls),
+                                                                 len(nucleus_dead_cows),
+                                                                 len(nucleus_dead_bulls),
+                                                                 len(nucleus_dead_cows) + len(nucleus_dead_bulls))
+
         # Cull bulls
         print '\n[run_scenario]: Computing summary statistics for bulls before culling at %s' %\
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -2847,6 +3002,17 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         print '\n[run_scenario]: Computing summary statistics for bulls after culling at %s' %\
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         abull_count, abull_min, abull_max, abull_mean, abull_var, abull_std = animal_summary(bulls)
+
+        if use_nucleus:
+            print '\n[run_scenario]: Computing summary statistics for nucleus bulls before culling at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            n_bbull_count, n_bbull_min, n_bbull_max, n_bbull_mean, n_bbull_var, n_bbull_std = animal_summary(nucleus_bulls)
+            print '\n[run_scenario]: Culling nucleus bulls at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            nucleus_bulls, nucleus_dead_bulls = cull_bulls(nucleus_bulls, nucleus_dead_bulls, generation,
+                                                           nucleus_max_bulls, debug=debug)
+            print '\n[run_scenario]: Computing summary statistics for nucleus bulls after culling at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            n_abull_count, n_abull_min, n_abull_max, n_abull_mean, n_abull_var, n_abull_std = animal_summary(nucleus_bulls)
 
         # Cull cows
         print '\n[run_scenario]: Computing summary statistics for cows before culling at %s' % \
@@ -2858,12 +3024,33 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         acow_count, acow_min, acow_max, acow_mean, acow_var, acow_std = animal_summary(cows)
 
+        if use_nucleus:
+            print '\n[run_scenario]: Computing summary statistics for nucleus cows before culling at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            n_bcow_count, n_bcow_min, n_bcow_max, n_bcow_mean, n_bcow_var, n_bcow_std = animal_summary(nucleus_cows)
+            print '\n[run_scenario]: Culling nucleus cows at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            nucleus_cows, nucleus_dead_cows = cull_cows(nucleus_cows, nucleus_dead_cows, generation, nucleus_recessives,
+                                                        nucleus_max_cows, culling_rate, dehorning_loss, debug=debug)
+            print '\n[run_scenario]: Computing summary statistics for nucleus cows after culling at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            n_acow_count, n_acow_min, n_acow_max, n_acow_mean, n_acow_var, n_acow_std = animal_summary(nucleus_cows)
+
         print
         print '\t\t              \tLive\tLive \tLive \tDead\tDead \tDead'
         print '\t\t              \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
         print '\t\tAfter culling:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(cows), len(bulls), len(cows)+len(bulls),
                                                               len(dead_cows), len(dead_bulls),
                                                               len(dead_cows)+len(dead_bulls))
+
+        if use_nucleus:
+            print
+            print '\t\t              \tLive\tLive \tLive \tDead\tDead \tDead'
+            print '\t\t              \tNucl\tNucl \tNucl \tNucl\tNucl \tNucl'
+            print '\t\t              \tCows\tBulls\tTotal\tCows\tBulls\tTotal'
+            print '\t\tAfter culling:\t%s\t%s\t%s\t%s\t%s\t%s' % (len(nucleus_cows), len(nucleus_bulls),
+                                                                  len(nucleus_cows) + len(nucleus_bulls),
+                                                                  len(nucleus_dead_cows), len(nucleus_dead_bulls),
+                                                                  len(nucleus_dead_cows) + len(nucleus_dead_bulls))
 
         print
         print '\t\tSummary statistics for TBV'
@@ -2874,118 +3061,158 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
         print '\t\tCow \tpre \t%s\t%s\t%s\t%s\t%s' % (int(bcow_count), bcow_min, bcow_max, bcow_mean, bcow_std)
         print '\t\tCow \tpost\t%s\t%s\t%s\t%s\t%s' % (int(acow_count), acow_min, acow_max, acow_mean, acow_std)
 
+        if use_nucleus:
+            print
+            print '\t\tSummary statistics for nucleus herd TBV'
+            print '\t\t---------------------------------------'
+            print '\t\t    \t    \tN\tMin\t\tMax\t\tMean\t\tStd'
+            print '\t\tNucl bull\tpre \t%s\t%s\t%s\t%s\t%s' % (int(n_bbull_count), n_bbull_min, n_bbull_max,
+                                                               n_bbull_mean, n_bbull_std)
+            print '\t\tNucl bull\tpost\t%s\t%s\t%s\t%s\t%s' % (int(n_abull_count), n_abull_min, n_abull_max,
+                                                               n_abull_mean, abull_std)
+            print '\t\tNucl cow \tpre \t%s\t%s\t%s\t%s\t%s' % (int(n_bcow_count), n_bcow_min, n_bcow_max, n_bcow_mean,
+                                                               bcow_std)
+            print '\t\tNucl cow \tpost\t%s\t%s\t%s\t%s\t%s' % (int(n_acow_count), n_acow_min, n_acow_max, n_acow_mean,
+                                                               acow_std)
+
         # Now update the MAF for the recessives in the population
         print '\n[run_scenario]: Updating minor allele frequencies at %s' %\
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         recessives, freq_hist = update_maf(cows, bulls, generation, recessives, freq_hist,
                                            show_recessives)
+        if use_nucleus:
+            print '\n[run_scenario]: Updating nucleus herd minor allele frequencies at %s' % \
+                  datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            nucleus_recessives, nucleus_freq_hist = update_maf(nucleus_cows, nucleus_bulls, generation,
+                                                               nucleus_recessives, nucleus_freq_hist,
+                                                               show_recessives)
 
         # Write history files.
         print '\n[run_scenario]: Writing history files at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         if history_freq == 'end' and generation == gens:
             write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag)
+            if use_nucleus:
+                write_history_files(nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls,
+                                    generation, nucleus_filetag)
             if show_disposals:
                 disposal_reasons(dead_bulls, dead_cows)
         elif history_freq == 'end' and generation != gens:
             pass
         else:
             write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag)
+            if use_nucleus:
+                write_history_files(nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls,
+                                    generation, nucleus_filetag)
             if show_disposals:
                 disposal_reasons(dead_bulls, dead_cows)
 
     # Save the simulation parameters so that we know what we did.
     outfile = 'simulation_parameters%s.txt' % filetag
     ofh = file(outfile, 'w')
-    outline = 'scenario           :\t%s\n' % scenario
+    outline = 'scenario              :\t%s\n' % scenario
     ofh.write(outline)
-    outline = 'cow_mean           :\t%s\n' % cow_mean
+    ofh.write('filetag               :\t%s\n' % filetag)
+    outline = 'cow_mean              :\t%s\n' % cow_mean
     ofh.write(outline)
-    outline = 'genetic_sd         :\t%s\n' % genetic_sd
+    outline = 'genetic_sd            :\t%s\n' % genetic_sd
     ofh.write(outline)
-    outline = 'bull_diff          :\t%s\n' % bull_diff
+    outline = 'bull_diff             :\t%s\n' % bull_diff
     ofh.write(outline)
-    outline = 'polled_diff        :\n'
+    outline = 'polled_diff           :\n'
     ofh.write(outline)
-    outline = '                     %s\n' % polled_diff[0]
+    outline = '                        %s\n' % polled_diff[0]
     ofh.write(outline)
-    outline = '                     %s\n' % polled_diff[1]
+    outline = '                        %s\n' % polled_diff[1]
     ofh.write(outline)
     outline = 'polled_parms       :\n'
     ofh.write(outline)
-    outline = '        percent polled: %s\n' % polled_parms[0]
+    outline = '        percent polled:    %s\n' % polled_parms[0]
     ofh.write(outline)
-    outline = '        percent PP:     %s\n' % polled_parms[1]
+    outline = '        percent PP:        %s\n' % polled_parms[1]
     ofh.write(outline)
-    outline = '        percent Pp:     %s\n' % polled_parms[2]
+    outline = '        percent Pp:        %s\n' % polled_parms[2]
     ofh.write(outline)
-    outline = 'percent            :\t%s\n' % percent
+    outline = 'percent               :\t%s\n' % percent
     ofh.write(outline)
-    outline = 'base bulls         :\t%s\n' % base_bulls
+    outline = 'base bulls            :\t%s\n' % base_bulls
     ofh.write(outline)
-    outline = 'base cows          :\t%s\n' % base_cows
+    outline = 'base cows             :\t%s\n' % base_cows
     ofh.write(outline)
-    outline = 'base herds         :\t%s\n' % base_herds
+    outline = 'base herds            :\t%s\n' % base_herds
     ofh.write(outline)
-    outline = 'base polled        :\t%s\n' % base_polled
+    outline = 'base polled           :\t%s\n' % base_polled
     ofh.write(outline)
-    outline = 'service bulls      :\t%s\n' % service_bulls
+    outline = 'service bulls         :\t%s\n' % service_bulls
     ofh.write(outline)
-    outline = 'max bulls          :\t%s\n' % max_bulls
+    outline = 'max bulls             :\t%s\n' % max_bulls
     ofh.write(outline)
-    outline = 'max cows           :\t%s\n' % max_cows
+    outline = 'max cows              :\t%s\n' % max_cows
     ofh.write(outline)
-    outline = 'edit_prop (cows)   :\t%s\n' % edit_prop[1]
+    outline = 'edit_prop (cows)      :\t%s\n' % edit_prop[1]
     ofh.write(outline)
-    outline = 'edit_prop (bulls)  :\t%s\n' % edit_prop[0]
+    outline = 'edit_prop (bulls)     :\t%s\n' % edit_prop[0]
     ofh.write(outline)
-    outline = 'edit_type          :\t%s\n' % edit_type
+    outline = 'edit_type             :\t%s\n' % edit_type
     ofh.write(outline)
-    outline = 'edit_trials        :\t%s\n' % edit_trials
+    outline = 'edit_trials           :\t%s\n' % edit_trials
     ofh.write(outline)
-    outline = 'embryo_trials      :\t%s\n' % embryo_trials
+    outline = 'embryo_trials         :\t%s\n' % embryo_trials
     ofh.write(outline)
-    outline = 'embryo_inbreeding  :\t%s\n' % embryo_inbreeding
+    outline = 'embryo_inbreeding     :\t%s\n' % embryo_inbreeding
     ofh.write(outline)
-    outline = 'show_recessives    :\t%s\n' % show_recessives
+    outline = 'show_recessives       :\t%s\n' % show_recessives
     ofh.write(outline)
     for rk, rv in recessives.iteritems():
         r = recessives.keys().index(rk)
-        outline = 'Base MAF  %s      :\t%s\n' % (r+1, rv['frequency'])
+        outline = 'Base MAF  %s         :\t%s\n' % (r+1, rv['frequency'])
         ofh.write(outline)
-        outline = 'Cost      %s      :\t%s\n' % (r+1, rv['value'])
+        outline = 'Cost      %s         :\t%s\n' % (r+1, rv['value'])
         ofh.write(outline)
-        outline = 'Lethal    %s      :\t%s\n' % (r+1, rv['lethal'])
+        outline = 'Lethal    %s         :\t%s\n' % (r+1, rv['lethal'])
         ofh.write(outline)
-        outline = 'Name      %s      :\t%s\n' % (r + 1, rk)
+        outline = 'Name      %s         :\t%s\n' % (r + 1, rk)
         ofh.write(outline)
-        outline = 'Edit      %s      :\t%s\n' % (r + 1, rv['edit'])
+        outline = 'Edit      %s         :\t%s\n' % (r + 1, rv['edit'])
         ofh.write(outline)
-        outline = 'Edit mode %s      :\t%s\n' % (r + 1, rv['edit_mode'])
+        outline = 'Edit mode %s         :\t%s\n' % (r + 1, rv['edit_mode'])
         ofh.write(outline)
-    outline = 'Debug              :\t%s\n' % debug
+    outline = 'Debug                 :\t%s\n' % debug
     ofh.write(outline)
-    outline = 'Filetag            :\t%s\n' % filetag
+    outline = 'Filetag               :\t%s\n' % filetag
     ofh.write(outline)
-    outline = 'RNG seed           :\t%s\n' % rng_seed
+    outline = 'RNG seed              :\t%s\n' % rng_seed
     ofh.write(outline)
-    outline = 'history_freq       :\t%s\n' % history_freq
+    outline = 'history_freq          :\t%s\n' % history_freq
     ofh.write(outline)
-    outline = 'bull_deficit:\t%s\n' % bull_deficit
+    outline = 'bull_deficit          :\t%s\n' % bull_deficit
     ofh.write(outline)
-    outline = 'bull_criterion:\t%s\n' % bull_criterion
+    outline = 'bull_criterion        :\t%s\n' % bull_criterion
     ofh.write(outline)
-    outline = 'carrier_penalty    :\t%s\n' % carrier_penalty
+    outline = 'carrier_penalty       :\t%s\n' % carrier_penalty
     ofh.write(outline)
-    outline = 'bull_copies        :\t%s\n' % bull_copies
+    outline = 'bull_copies           :\t%s\n' % bull_copies
     ofh.write(outline)
-    outline = 'bull_unique        :\t%s\n' % bull_unique
+    outline = 'bull_unique           :\t%s\n' % bull_unique
     ofh.write(outline)
-    outline = 'calf_loss          :\t%s\n' % calf_loss
+    outline = 'calf_loss             :\t%s\n' % calf_loss
     ofh.write(outline)
-    outline = 'dehorning_loss     :\t%s\n' % dehorning_loss
+    outline = 'dehorning_loss        :\t%s\n' % dehorning_loss
     ofh.write(outline)
-    outline = 'culling_rate       :\t%s\n' % culling_rate
+    outline = 'culling_rate          :\t%s\n' % culling_rate
     ofh.write(outline)
+    ofh.write('use_nucleus           :\t%s\n' % use_nucleus)
+    ofh.write('nucleus_cow_mean      :\t%s\n' % nucleus_cow_mean)
+    ofh.write('nucleus_genetic_sd    :\t%s\n' % nucleus_genetic_sd)
+    ofh.write('nucleus_bull_diff     :\t%s\n' % nucleus_bull_diff)
+    ofh.write('nucleus_base_bulls    :\t%s\n' % nucleus_base_bulls)
+    ofh.write('nucleus_base_cows     :\t%s\n' % nucleus_base_cows)
+    ofh.write('nucleus_base_herds    :\t%s\n' % nucleus_base_herds)
+    ofh.write('nucleus_service_bulls :\t%s\n' % nucleus_service_bulls)
+    ofh.write('nucleus_max_bulls     :\t%s\n' % nucleus_max_bulls)
+    ofh.write('nucleus_max_cows      :\t%s\n' % nucleus_max_cows)
+    ofh.write('nucleus_max_matings   :\t%s\n' % nucleus_max_matings)
+    ofh.write('nucleus_bulls_to_move :\t%s\n' % nucleus_bulls_to_move)
+    ofh.write('nucleus_filetag       :\t%s\n' % nucleus_filetag)
     ofh.close()
 
     # Save the allele frequency history
@@ -2997,7 +3224,18 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
             outline += '\t%s' % frequency
         outline += '\n'
         ofh.write(outline)
-    ofh.close()
+        ofh.close()
+
+    if use_nucleus:
+        outfile = 'minor_allele_frequencies_%s.txt' % nucleus_filetag
+        ofh = file(outfile, 'w')
+        for k, v in nuclear_freq_hist.iteritems():
+            outline = '%s' % k
+            for frequency in v:
+                outline += '\t%s' % frequency
+            outline += '\n'
+            ofh.write(outline)
+            ofh.close()
 
     # Now that we're done with the simulation let's go ahead and visualize the change in minor allele frequency
     fig = plt.figure()
@@ -3020,6 +3258,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     plt.savefig(filename, bbox_inches="tight")
     plt.clf()
 
+
 # Print death codes in case you can't remember them all I know I can't)
 
 
@@ -3033,6 +3272,10 @@ def print_death_codes():
     \tR = Animal killed by recessive genetic condition
     """
 
+
+# Run checks on the parameters to make sure that they've been given plausible values.
+
+
 def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gens, percent, base_bulls,
                      base_cows, service_bulls, base_herds, max_bulls, max_cows, debug, filetag,
                      recessives, max_matings, rng_seed, show_recessives, history_freq, edit_prop,
@@ -3041,7 +3284,7 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
                      calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
                      nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
                      nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
-                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move):
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag):
 
     """Check simulation parameters to ensure they contain permissible values.
 
@@ -3113,6 +3356,7 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
     :param dehorning_loss: The proportion of cows that die during dehorning.
     :type dehorning_loss: float
     :param culling_rate: The proportion of cows culled involuntarily each generation.
+    :type culling_rate: float
     :param show_disposals: Print a summary of disposal reasons following the history_freq flag.
     :type show_disposals: bool
     :param use_nucleus: Create and use nucleus herds to propagate elite genetics
@@ -3139,7 +3383,8 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
     :type nucleus_max_matings: int
     :param nucleus_bulls_to_move: The number of bulls to move from nucleus herds to the multiplier herds each year
     :type nucleus_bulls_to_move: int
-    :type culling_rate: float
+    :param nucleus_filetag: Added to file names to describe the analysis a nucleus herd file is associated with.
+    :type nucleus_filetag: string
 
     :rtype: None
     """
@@ -3198,6 +3443,7 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
         'nucleus_max_cows': {'type': 'integer', 'min': 0},
         'nucleus_max_matings': {'type': 'integer', 'min': 0},
         'nucleus_bulls_to_move': {'type': 'integer', 'min': 0},
+        'nucleus_filetag': {'type': 'string', 'empty': True},
     }
 
     ge_document = { 'scenario': scenario, 'cow_mean': cow_mean, 'genetic_sd': genetic_sd,
@@ -3218,6 +3464,7 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
                     'nucleus_base_herds': nucleus_base_herds, 'nucleus_service_bulls': nucleus_service_bulls,
                     'nucleus_max_bulls': nucleus_max_bulls, 'nucleus_max_cows': nucleus_max_cows,
                     'nucleus_max_matings': nucleus_max_matings, 'nucleus_bulls_to_move': nucleus_bulls_to_move,
+                    'nucleus_filetag': nucleus_filetag,
     }
 
     ge_validator = cerberus.Validator(ge_schema)
@@ -3249,6 +3496,7 @@ if __name__ == '__main__':
     show_recessives = False     # Show recessive frequencies after each round.
     check_all_parms = True      # Perform a formal check on all parameters.
     show_disposals = True       # Print the frequency of disposals by reason.
+    filetag = '_testing'        # Label with which to append filenames for tracking different scenarios.
 
 
     # -- Base Population Parameters
@@ -3297,6 +3545,8 @@ if __name__ == '__main__':
     nucleus_max_cows =      10000  # Maximum number of live cows to keep each generation in nucleus herds
     nucleus_max_matings =   5000   # The maximum number of matings permitted for each nucleus herd bull
     nucleus_bulls_to_move = 500    # The number of bulls to move from nucleus herds to the multiplier herds each year
+    nucleus_filetag = '_nucleus_testing'    # Label with which to append filenames for tracking different scenarios
+
 
     # -- Gene Editing Parameters
     edit_prop =     [0.10, 0.01]   # The proportion of animals to edit based on TBV (e.g., 0.01 = 1 %),
@@ -3354,7 +3604,7 @@ if __name__ == '__main__':
                  max_bulls=max_bulls,
                  max_cows=max_cows,
                  debug=debug,
-                 filetag='_testing',
+                 filetag=filetag,
                  recessives=recessives,
                  max_matings=max_matings,
                  rng_seed=rng_seed,
@@ -3376,4 +3626,18 @@ if __name__ == '__main__':
                  calf_loss=calf_loss,
                  dehorning_loss=dehorning_loss,
                  culling_rate=culling_rate,
-                 check_all_parms=check_all_parms)
+                 check_all_parms=check_all_parms,
+                 use_nucleus=use_nucleus,
+                 nucleus_cow_mean=nucleus_cow_mean,
+                 nucleus_genetic_sd=nucleus_genetic_sd,
+                 nucleus_bull_diff=nucleus_bull_diff,
+                 nucleus_base_bulls=nucleus_base_bulls,
+                 nucleus_base_cows=nucleus_base_cows,
+                 nucleus_base_herds=nucleus_base_herds,
+                 nucleus_service_bulls=nucleus_service_bulls,
+                 nucleus_max_bulls=nucleus_max_bulls,
+                 nucleus_max_cows=nucleus_max_cows,
+                 nucleus_max_matings=nucleus_max_matings,
+                 nucleus_bulls_to_move=nucleus_bulls_to_move,
+                 nucleus_filetag=nucleus_filetag,
+                 )
