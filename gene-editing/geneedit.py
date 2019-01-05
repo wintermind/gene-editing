@@ -38,19 +38,6 @@ import types
 #   are about twice as inbred and twice as related as polled cows.
 #
 # + Convert animal records to dictionaries
-#
-# + MLM: I think the dehorning_loss needs to be restructured though. I think it's really
-#   important that the dehorning is related to the recessives (either the animal's
-#   genotype itself or based on the sire's genotype) because increasing polled frequency
-#   should then result in less mortality which does not happen in the current model. Also
-#   the dehorning_loss needs to be for both cows and bulls.
-#
-# + I'm still thinking on how to handle the nucleus/multiplier situation. I have some
-#   code that changes animal records from lists ti dictionaries, which would make it a
-#   lot easier to add properties to animals. I'm thinking about finally promoting that
-#   code (it still needs some programming and testing) and making the nucleus/multiplier
-#   status a property of animals, since they never change herds.  More work is needed on
-#   that.
 ##
 
 
@@ -336,8 +323,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                   '', -1, base_cow_tbv.item(i), 0.0, [], [], 0, []]
         for rk in recessives.keys():
             c_list[-1].append(int(base_cow_gt.item(i, recessives.keys().index(rk))))
-            c_list[11].append(0) # Edit status
-            c_list[12].append(0) # Edit count
+            c_list[11].append(0)    # Edit status
+            c_list[12].append(0)    # Edit count
         cows.append(c_list)
         id_list.append(c)
 
@@ -359,8 +346,8 @@ def create_base_population(cow_mean=0., genetic_sd=200., bull_diff=1.5, polled_d
                   -1, bull_tbv, 0.0, [], [], 0, []]
         for rk in recessives.keys():
             b_list[-1].append(int(base_bull_gt.item(i, recessives.keys().index(rk))))
-            b_list[11].append(0)  # Edit status
-            b_list[12].append(0)  # Edit count
+            b_list[11].append(0)    # Edit status
+            b_list[12].append(0)    # Edit count
         bulls.append(b_list)
         id_list.append(b)
 
@@ -434,7 +421,6 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
     if max_matings * len(bulls) < len(cows):
         print "[random_mating]: You don't have enough matings to breed all cows1"
 
-
     # Make a list of bulls so that we can track the number of matings for each
     matings = {}
     new_cows = []
@@ -458,12 +444,12 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
             if debug:
                 print 'Mating cow %s' % cow_id
             while not mated:
-    #     2. For each cow, pick a bull at random
+                # 2. For each cow, pick a bull at random
                 bull_to_use = random.randint(0, len(bulls)-1)
                 bull_id = bulls[bull_to_use][0]
                 if debug:
                     print 'Using bull %s (ID %s)' % (bull_to_use, bull_id)
-    #     3. If the bull is alive and has matings left then use him            
+                    # 3. If the bull is alive and has matings left then use him
                 if bulls[bull_to_use][6] == 'A' and matings[bull_id] < max_matings:
                     if debug:
                         print 'bull %s (ID %s) is alive and has available matings' % (bull_to_use, bull_id)
@@ -476,7 +462,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
                         new_cows.append(calf)
                     else:
                         new_bulls.append(calf)
-    #         Done!
+                        # Done!
                     next_id += 1
                     mated = True
                 else:
@@ -609,13 +595,13 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
             if debug:
                 print '\t[truncation_mating]: Mating cow %s' % cow_id
             while not mated:
-    #     2. For each cow, pick a bull at random
+                # 2. For each cow, pick a bull at random
                 # Note the offset index to account for the fact that we're picking only
                 # from the top pct of the bulls.
                 bull_to_use = random.randint(len(bulls)-b2k, len(bulls)-1)
                 bull_id = bulls[bull_to_use][0]
                 #if debug: print 'Using bull %s (ID %s)' % ( bull_to_use, bull_id )
-    #     3. If the bull is alive then use him            
+                # 3. If the bull is alive then use him
                 if bulls[bull_to_use][6] == 'A':
                     if debug:
                         print 'bull %s (ID %s) is alive' % (bull_to_use, bull_id)
@@ -628,7 +614,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
                         new_cows.append(calf)
                     else:
                         new_bulls.append(calf)
-    #   Done!
+                        # Done!
                     next_id += 1
                     mated = True
                 else:
@@ -722,6 +708,7 @@ def get_next_id(cows, bulls, dead_cows, dead_bulls, *kw):
 def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generations, filetag='',
                        penalty=False, proxy_matings=False, bull_criterion='random', bull_deficit='use_horned',
                        bull_copies=4, bull_unique=False, base_herds=100, service_bulls=50, debug=False):
+
     """Compute coefficients of inbreeding for each animal in the pedigree.
 
     :param cows: A list of live cow records.
@@ -789,7 +776,7 @@ def compute_inbreeding(cows, bulls, dead_cows, dead_bulls, generation, generatio
     if proxy_matings:
         # Note that I'm including a fudge factor by multiplying the bulls by 2 so that we get an
         # array longer than we need.
-        pedigree_size += (2 * len(cows) * service_bulls)  # Leave room for new calves
+        pedigree_size += (2 * len(cows) * service_bulls)    # Leave room for new calves
         matings = {}
         bull_portfolio = {}
         cow_portfolio = {}
@@ -1091,9 +1078,10 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
                   % bull_criterion
         bull_criterion = 'random'
 
-    if bull_deficit not in ['use_horned', 'no_limit']:
-        print '\t\t[get_herd_bulls]: bull_deficit has a value of %s but should be \'use_horned\' or \'no_limit\', ' \
-              'setting to \'no_limit\'.' % bull_deficit
+    # This is now handled in check_parameters().
+    #if bull_deficit not in ['use_horned', 'no_limit']:
+    #    print '\t\t[get_herd_bulls]: bull_deficit has a value of %s but should be \'use_horned\' or \'no_limit\', ' \
+    #          'setting to \'no_limit\'.' % bull_deficit
 
     # Initialize herd_bulls
     herd_bulls = []
@@ -1138,9 +1126,9 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
                 # We can re-use bulls, so don't worry about uniqueness.
                 else:
                     herd_bulls = mating_bulls + other_bulls[0:(service_bulls - len(mating_bulls) + 1)]
+            # We're not using horned bulls to make up a deficit in the number of polled bulls, but we do want
+            # to restrict to unique bulls for each herd, if possible.
             else:
-                # We're not using horned bulls to make up a deficit in the number of polled bulls, but we do want
-                # to restrict to unique bulls for each herd, if possible.
                 if bull_unique:
                     herd_bulls = [b for b in mating_bulls if b[0] not in bull_used][0:service_bulls-1]
                     # If there aren't enough bulls yet, sample more bulls from mating_bulls, allowing the re-use of
@@ -1188,6 +1176,10 @@ def get_herd_bulls(bulls, recessives, bull_criterion='random', bull_deficit='use
                 herd_bulls = bulls[0:service_bulls]  # Select service_bulls at random
             else:
                 herd_bulls = bulls[0:int(len(bulls) / 5)]  # Select 20% at random
+    # In the scenario, cows will be left open if there aren't enough bulls to breed everyone.
+    elif bull_deficit == 'open':
+        # Select bulls from mating_bulls that have not yet been used for mating to this herd.
+        herd_bulls = [b for b in mating_bulls if b[0] not in bull_used][0:service_bulls - 1]
     else:
         if debug:
             print '\t[polled_mating]: Unhandled value of bull_criterion, %s, returning empty list!' % bull_criterion
@@ -1297,7 +1289,9 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
                                                                                                           bull_deficit=bull_deficit,
                                                                                                           bull_copies=bull_copies,
                                                                                                           bull_unique=bull_unique,
-                                                                                                          debug=debug)
+                                                                                                          base_herds=base_herds,
+                                                                                                          service_bulls=service_bulls,
+                                                                                                          debug=debug,)
 
     # # If the user has specified that only heterozygous or homozygous polled bulls be used then we need
     # # to drop other polled bulls from the bull portfolio.
@@ -1353,7 +1347,8 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         print '\t[pryce_mating]: Starting loop over herds to identify optimal matings at %s' % \
               datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     tenth = len(bull_portfolio.keys()) / 10
-    if tenth <= 0: tenth = 1
+    if tenth <= 0:
+        tenth = 1
     herd_counter = 0
     # For each herd we're going to loop over all possible matings of the cows in the herd to the randomly chosen
     # bull portfolio and compute a parent average. Then we'll select the actual matings. This will be on a within-
@@ -2371,10 +2366,10 @@ def cull_cows(cows, dead_cows, generation, recessives, max_cows=0, culling_rate=
         n_culled = 0
         for c in cows:
             if random.uniform(0, 1) < culling_rate:
-                c[6] = 'D'             # This cow is dead
-                c[7] = 'I'             # Because of involuntary culling
-                c[8] = generation      # In the current generation
-                dead_cows.append(c)    # Add it to the dead cows list
+                c[6] = 'D'                          # This cow is dead
+                c[7] = 'I'                          # Because of involuntary culling
+                c[8] = generation                   # In the current generation
+                dead_cows.append(copy.copy(c))      # Add it to the dead cows list
                 n_culled += 1
         if debug:
             print '\t[cull_cows]: %s cows involuntarily culled in generation %s' % (n_culled, generation)
@@ -2398,11 +2393,11 @@ def cull_cows(cows, dead_cows, generation, recessives, max_cows=0, culling_rate=
     else:
         c_diff = len(cows) - max_cows
         for c in cows[0:c_diff]:
-            c[6] = 'D'           # This cow is dead
-            c[7] = 'N'           # Because there were too many of them
-            c[8] = generation    # In the current generation
-            dead_cows.append(c)
-        cows = cows[c_diff:]
+            c[6] = 'D'                          # This cow is dead
+            c[7] = 'N'                          # Because there were too many of them
+            c[8] = generation                   # In the current generation
+            dead_cows.append(copy.copy(c))      # Add it to the dead cows list
+        #cows = cows[c_diff:]
         if debug: print '\t[cull_cows]: %s cows were culled to maintain herd size in generation %s (cows>max_cows)'\
                         % (c_diff, generation)
 
@@ -2671,6 +2666,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                  nucleus_base_bulls=100, nucleus_base_cows=5000, nucleus_base_herds=10,
                  nucleus_service_bulls=15, nucleus_max_bulls=750, nucleus_max_cows=10000,
                  nucleus_max_matings=5000, nucleus_bulls_to_move=500, nucleus_filetag='',
+                 nucleus_recessives={},
                 ):
 
     """Main loop for individual simulation scenarios.
@@ -2774,6 +2770,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     :type nucleus_bulls_to_move: int
     :param nucleus_filetag: Added to file names to describe the analysis a nucleus herd file is associated with.
     :type nucleus_filetag: string
+    :param nucleus_recessives: Dictionary of recessive alleles in the nucleus population.
+    :type nucleus_recessives: dictionary
     :rtype: None
     """
 
@@ -2790,7 +2788,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                      calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
                      nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
                      nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
-                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag)
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag,
+                     nucleus_recessives)
         if not check_result:
             print '[run_scenario]: Errors in simulation parameters, cannot continue, stopping program.'
             sys.exit(0)
@@ -2821,7 +2820,6 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     # !!! The regular (non-nucleus) base population MUST be created before the base nucleus herds in order
     # !!! to avoid ID duplication.
     if use_nucleus:
-        nucleus_recessives = copy.copy(recessives)
         print '[run_scenario]: Setting-up nucleus herds at %s' % datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls, nucleus_freq_hist = create_base_population(
             cow_mean=nucleus_cow_mean,
@@ -2946,7 +2944,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                           (generation, get_next_id(cows, bulls, dead_cows, dead_bulls, nucleus_cows, nucleus_bulls,
                                                    nucleus_dead_cows, nucleus_dead_bulls))
 
-        # Only the top "pct" of bulls, based on TBV, are mater randomly to the cow
+        # Only the top "pct" of bulls, based on TBV, are mated randomly to the cow
         # population with no limit on the number of matings allowed. This is a simple
         # example of truncation selection.
         elif scenario == 'truncation':
@@ -3192,130 +3190,100 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                                                               nucleus_dead_cows,
                                                               nucleus_dead_bulls
                                                               )
-
-            if debug:
-                print 'Next available animal ID after polled mating in gen %s:\t\t%s' % \
-                      ( generation, get_next_id(cows, bulls, dead_cows, dead_bulls, nucleus_cows, nucleus_bulls,
-                                                nucleus_dead_cows, nucleus_dead_bulls) )
-
             if use_nucleus:
                 print '\n[run_scenario]: Mating nucleus cows to polled nucleus bulls using Pryce\'s method at %s' % \
                       datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                 nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = pryce_mating(cows=nucleus_cows,
-                                                                                                  bulls=nucleus_bulls,
-                                                                                                  dead_cows=nucleus_dead_cows,
-                                                                                                  dead_bulls=nucleus_dead_bulls,
-                                                                                                  generation=generation,
-                                                                                                  generations=gens,
-                                                                                                  filetag=nucleus_filetag,
-                                                                                                  recessives=nucleus_recessives,
-                                                                                                  max_matings=nucleus_max_matings,
-                                                                                                  base_herds=nucleus_base_herds,
-                                                                                                  debug=debug,
-                                                                                                  penalty=False,
-                                                                                                  service_bulls=nucleus_service_bulls,
-                                                                                                  edit_prop=edit_prop,
-                                                                                                  edit_type=edit_type,
-                                                                                                  edit_trials=edit_trials,
-                                                                                                  embryo_trials=embryo_trials,
-                                                                                                  flambda=flambda,
-                                                                                                  bull_criterion=bull_criterion,
-                                                                                                  bull_deficit=bull_deficit,
-                                                                                                  carrier_penalty=carrier_penalty,
-                                                                                                  bull_copies=bull_copies,
-                                                                                                  bull_unique=bull_unique,
-                                                                                                  calf_loss=calf_loss,
-                                                                                                  dehorning_loss=dehorning_loss,
-                                                                                                  cows,
-                                                                                                  bulls,
-                                                                                                  dead_cows,
-                                                                                                  dead_bulls
-                                                                                                  )
-
-                if debug:
-                    print 'Next available animal ID after nucleus polled mating in gen %s:\t\t%s' % \
-                          (generation, get_next_id(cows, bulls, dead_cows, dead_bulls, nucleus_cows, nucleus_bulls,
-                                                   nucleus_dead_cows, nucleus_dead_bulls))
+                                                                  bulls=nucleus_bulls,
+                                                                  dead_cows=nucleus_dead_cows,
+                                                                  dead_bulls=nucleus_dead_bulls,
+                                                                  generation=generation,
+                                                                  generations=gens,
+                                                                  filetag=nucleus_filetag,
+                                                                  recessives=nucleus_recessives,
+                                                                  max_matings=nucleus_max_matings,
+                                                                  base_herds=nucleus_base_herds,
+                                                                  debug=debug,
+                                                                  penalty=False,
+                                                                  service_bulls=nucleus_service_bulls,
+                                                                  edit_prop=edit_prop,
+                                                                  edit_type=edit_type,
+                                                                  edit_trials=edit_trials,
+                                                                  embryo_trials=embryo_trials,
+                                                                  flambda=flambda,
+                                                                  bull_criterion=bull_criterion,
+                                                                  bull_deficit=bull_deficit,
+                                                                  carrier_penalty=carrier_penalty,
+                                                                  bull_copies=bull_copies,
+                                                                  bull_unique=bull_unique,
+                                                                  calf_loss=calf_loss,
+                                                                  dehorning_loss=dehorning_loss,
+                                                                  )
 
         # Mate cows to polled bulls whenever they're available.
         elif scenario == 'polled_r':
-            print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method at %s' % \
+            print '\n[run_scenario]: Mating cows to polled bulls using Pryce\'s method and accounting for recessives at %s' % \
                   datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            cows, bulls, dead_cows, dead_bulls = pryce_mating(cows=cows,
-                                                              bulls=bulls,
-                                                              dead_cows=dead_cows,
-                                                              dead_bulls=dead_bulls,
-                                                              generation=generation,
-                                                              generations=gens,
-                                                              filetag=filetag,
-                                                              recessives=recessives,
-                                                              max_matings=max_matings,
-                                                              base_herds=base_herds,
-                                                              debug=debug,
-                                                              penalty=True,
-                                                              service_bulls=service_bulls,
-                                                              edit_prop=edit_prop,
-                                                              edit_type=edit_type,
-                                                              edit_trials=edit_trials,
-                                                              embryo_trials=embryo_trials,
-                                                              flambda=flambda,
-                                                              bull_criterion=bull_criterion,
-                                                              bull_deficit=bull_deficit,
-                                                              carrier_penalty=carrier_penalty,
-                                                              bull_copies=bull_copies,
-                                                              bull_unique=bull_unique,
-                                                              calf_loss=calf_loss,
-                                                              dehorning_loss=dehorning_loss,
-                                                              nucleus_cows,
-                                                              nucleus_bulls,
-                                                              nucleus_dead_cows,
-                                                              nucleus_dead_bulls
-                                                              )
-
-            if debug:
-                print 'Next available animal ID after polled + R mating in gen %s:\t\t%s' % \
-                      ( generation, get_next_id(cows, bulls, dead_cows, dead_bulls, nucleus_cows, nucleus_bulls,
-                                                nucleus_dead_cows, nucleus_dead_bulls) )
+            cows, bulls, dead_cows, dead_bulls = pryce_mating(
+                cows=nucleus_cows,
+                bulls=bulls,
+                dead_cows=dead_cows,
+                dead_bulls=dead_bulls,
+                generation=generation,
+                generations=generations,
+                filetag=filetag,
+                recessives=recessives,
+                max_matings=max_matings,
+                base_herds=base_herds,
+                debug=debug,
+                penalty=True,
+                service_bulls=service_bulls,
+                edit_prop=edit_prop,
+                edit_type=edit_type,
+                edit_trials=edit_trials,
+                embryo_trials=embryo_trials,
+                embryo_inbreeding=embryo_inbreeding,
+                flambda=flambda,
+                bull_criterion=bull_criterion,
+                bull_deficit=bull_deficit,
+                carrier_penalty=carrier_penalty,
+                bull_copies=bull_copies,
+                bull_unique=bull_unique,
+                calf_loss=calf_loss,
+                dehorning_loss=dehorning_loss,
+            )
 
             if use_nucleus:
                 print '\n[run_scenario]: Mating nucleus cows to polled nucleus bulls using Pryce\'s method and accounting for recessives at %s' % \
                       datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = pryce_mating(cows=nucleus_cows,
-                                                                                                  bulls=nucleus_bulls,
-                                                                                                  dead_cows=nucleus_dead_cows,
-                                                                                                  dead_bulls=nucleus_dead_bulls,
-                                                                                                  generation=generation,
-                                                                                                  generations=generations,
-                                                                                                  filetag=nucleus_filetag,
-                                                                                                  recessives=nucleus_recessives,
-                                                                                                  max_matings=nucleus_max_matings,
-                                                                                                  base_herds=nucleus_base_herds,
-                                                                                                  debug=debug,
-                                                                                                  penalty=True,
-                                                                                                  service_bulls=nucleus_service_bulls,
-                                                                                                  edit_prop=edit_prop,
-                                                                                                  edit_type=edit_type,
-                                                                                                  edit_trials=edit_trials,
-                                                                                                  embryo_trials=embryo_trials,
-                                                                                                  embryo_inbreeding=embryo_inbreeding,
-                                                                                                  flambda=flambda,
-                                                                                                  bull_criterion=bull_criterion,
-                                                                                                  bull_deficit=bull_deficit,
-                                                                                                  carrier_penalty=carrier_penalty,
-                                                                                                  bull_copies=bull_copies,
-                                                                                                  bull_unique=bull_unique,
-                                                                                                  calf_loss=calf_loss,
-                                                                                                  dehorning_loss=dehorning_loss,
-                                                                                                  cows,
-                                                                                                  bulls,
-                                                                                                  dead_cows,
-                                                                                                  dead_bulls
-                                                                                                  )
-
-                if debug:
-                    print 'Next available animal ID after nucleus polled + R mating in gen %s:\t\t%s' % \
-                          (generation, get_next_id(cows, bulls, dead_cows, dead_bulls, nucleus_cows, nucleus_bulls,
-                                                   nucleus_dead_cows, nucleus_dead_bulls))
+                nucleus_cows, nucleus_bulls, nucleus_dead_cows, nucleus_dead_bulls = pryce_mating(
+                    cows=nucleus_cows,
+                    bulls=nucleus_bulls,
+                    dead_cows=nucleus_dead_cows,
+                    dead_bulls=nucleus_dead_bulls,
+                    generation=generation,
+                    generations=generations,
+                    filetag=nucleus_filetag,
+                    recessives=nucleus_recessives,
+                    max_matings=nucleus_max_matings,
+                    base_herds=nucleus_base_herds,
+                    debug=debug,
+                    penalty=True,
+                    service_bulls=nucleus_service_bulls,
+                    edit_prop=edit_prop,
+                    edit_type=edit_type,
+                    edit_trials=edit_trials,
+                    embryo_trials=embryo_trials,
+                    embryo_inbreeding=embryo_inbreeding,
+                    flambda=flambda,
+                    bull_criterion=bull_criterion,
+                    bull_deficit=bull_deficit,
+                    carrier_penalty=carrier_penalty,
+                    bull_copies=bull_copies,
+                    bull_unique=bull_unique,
+                    calf_loss=calf_loss,
+                    dehorning_loss=dehorning_loss,
+                    )
 
         # The default scenario is random mating.
         else:
@@ -3558,6 +3526,7 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write('embryo_trials         :\t%s\n' % embryo_trials)
     ofh.write('embryo_inbreeding     :\t%s\n' % embryo_inbreeding)
     ofh.write('show_recessives       :\t%s\n' % show_recessives)
+    ofh.write('Recessives in multiplier herds\n')
     for rk, rv in recessives.iteritems():
         r = recessives.keys().index(rk)
         ofh.write('Base MAF  %s              :\t%s\n' % (r+1, rv['frequency']))
@@ -3592,6 +3561,15 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     ofh.write('nucleus_max_matings   :\t%s\n' % nucleus_max_matings)
     ofh.write('nucleus_bulls_to_move :\t%s\n' % nucleus_bulls_to_move)
     ofh.write('nucleus_filetag       :\t%s\n' % nucleus_filetag)
+    ofh.write('Recessives in nucleus herds\n')
+    for rk, rv in nucleus_recessives.iteritems():
+        r = nucleus_recessives.keys().index(rk)
+        ofh.write('Base MAF  %s              :\t%s\n' % (r+1, rv['frequency']))
+        ofh.write('Cost      %s              :\t%s\n' % (r+1, rv['value']))
+        ofh.write('Lethal    %s              :\t%s\n' % (r+1, rv['lethal']))
+        ofh.write('Name      %s              :\t%s\n' % (r + 1, rk))
+        ofh.write('Edit      %s              :\t%s\n' % (r + 1, rv['edit']))
+        ofh.write('Edit mode %s              :\t%s\n' % (r + 1, rv['edit_mode']))
     ofh.close()
 
     # Save the allele frequency history
@@ -3663,7 +3641,8 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
                      calf_loss, dehorning_loss, culling_rate, show_disposals, use_nucleus,
                      nucleus_cow_mean, nucleus_genetic_sd, nucleus_bull_diff, nucleus_base_bulls,
                      nucleus_base_cows, nucleus_base_herds, nucleus_service_bulls, nucleus_max_bulls,
-                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag):
+                     nucleus_max_cows, nucleus_max_matings, nucleus_bulls_to_move, nucleus_filetag,
+                     nucleus_recessives):
 
     """Check simulation parameters to ensure they contain permissible values.
 
@@ -3764,7 +3743,8 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
     :type nucleus_bulls_to_move: int
     :param nucleus_filetag: Added to file names to describe the analysis a nucleus herd file is associated with.
     :type nucleus_filetag: string
-
+    :param nucleus_recessives: Dictionary of recessive alleles in the nucleus population.
+    :type nucleus_recessives: dictionary
     :rtype: None
     """
 
@@ -3799,7 +3779,7 @@ def check_parameters(scenario, cow_mean, genetic_sd, bull_diff, polled_diff, gen
         'embryo_inbreeding': {'type': 'boolean'},
         'flambda': {'type': 'number'},
         'bull_criterion': {'type': 'string', 'allowed': ['polled', 'random']},
-        'bull_deficit': {'type': 'string', 'allowed': ['use_horned', 'no_limit']},
+        'bull_deficit': {'type': 'string', 'allowed': ['use_horned', 'no_limit', 'open']},
         'base_polled': {'type': 'string', 'allowed': ['homo', 'het', 'both']},
         'carrier_penalty': {'type': 'boolean'},
         'bull_copies': {'type': 'integer'},
@@ -3900,8 +3880,8 @@ if __name__ == '__main__':
     percent =       0.10     # Proportion of bulls to use in the truncation mating scenario
     generations =   2        # How long to run the simulation
     max_matings =   5000     # The maximum number of matings permitted for each bull (5% of cows)
-    bull_criterion = 'polled'      # How should the bulls be picked?
-    bull_deficit =   'use_horned'  # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit'.
+    bull_criterion = 'polled'      # How should the bulls be picked?.
+    bull_deficit =   'use_horned'  # Manner of handling too few polled bulls for matings: 'use_horned' or 'no_limit' or 'open'
     bull_unique = True       # Create unique bull portfolios, if possible, for each herd.
     bull_copies =   0        # Genotype of polled bulls selected for mating ('homo'|'het'|'both') # 4
     flambda =       25.      # Decrease in economic merit (in US dollars) per 1% increase in inbreeding.
@@ -3960,6 +3940,13 @@ if __name__ == '__main__':
     # ]
 
     recessives = {
+        'Horned': {'frequency': 0.9929, 'value': 40, 'lethal': 0, 'edit': 0, 'edit_mode': 'D'},
+    }
+
+    # A separate dictionary is used for recessives in the nucleus herds so that editing can be controlled differently
+    # for the nucleus and multiplier herds. In this case, edit is '1' for the nucleus herds and '0' for the
+    # multiplier herds, so editing only happens in the nucleus.
+    nucleus_recessives = {
         'Horned': {'frequency': 0.9929, 'value': 40, 'lethal': 0, 'edit': 1, 'edit_mode': 'D'},
     }
 
@@ -4019,4 +4006,5 @@ if __name__ == '__main__':
                  nucleus_max_matings=nucleus_max_matings,
                  nucleus_bulls_to_move=nucleus_bulls_to_move,
                  nucleus_filetag=nucleus_filetag,
+                 nucleus_recessives=nucleus_recessives,
                  )
