@@ -324,7 +324,7 @@ def create_base_population(cow_mean, genetic_sd=200., bull_diff=1.5, polled_diff
             if debug:
                 print '\t[create_base_population]: Error! A cow with ID %s already exists in the ID list!' % c
         c_list = [c, 0, 0, (-1*random.randint(0, 4)), 'F', random.randint(0, base_herds-1), 'A',
-                  '', -1, base_cow_tbv.item(i), 0.0, [], [], 0, []]
+                  '', -1, base_cow_tbv.item(i), 0.0, [], [], [], 0, []]
         for rk in recessives.keys():
             c_list[-1].append(int(base_cow_gt.item(i, recessives.keys().index(rk))))
             c_list[11].append(0)    # Edit status
@@ -347,7 +347,7 @@ def create_base_population(cow_mean, genetic_sd=200., bull_diff=1.5, polled_diff
         else:
             bull_tbv = base_bull_tbv.item(i)
         b_list = [b, 0, 0, (-1 * random.randint(0, 9)), 'M', random.randint(0, base_herds - 1), 'A', '',
-                  -1, bull_tbv, 0.0, [], [], 0, []]
+                  -1, bull_tbv, 0.0, [], [], [], 0, []]
         for rk in recessives.keys():
             b_list[-1].append(int(base_bull_gt.item(i, recessives.keys().index(rk))))
             b_list[11].append(0)    # Edit status
@@ -1567,7 +1567,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         if edit_prop[0] > 0.0:
             if debug:
                 print '\t\t[pryce_mating]: About to edit bulls. Next ID = %s' % \
-                      get_next_id(cows, bulls, dead_cows, dead_bulls, args)
+                      get_next_id(cows, bulls, dead_cows, dead_bulls, *extras)
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
                                                             recessives, generation, edit_prop[0],
                                                             edit_type, edit_trials, embryo_trials,
@@ -1575,7 +1575,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         if edit_prop[1] > 0.0:
             if debug:
                 print '\t\t[pryce_mating]: About to edit cows. Next ID = %s' % \
-                      get_next_id(cows, bulls, dead_cows, dead_bulls, args)
+                      get_next_id(cows, bulls, dead_cows, dead_bulls, *extras)
             cows, bulls, dead_cows, dead_bulls = edit_genes(cows, bulls, dead_cows, dead_bulls,
                                                             recessives, generation, edit_prop[1],
                                                             edit_type, edit_trials, embryo_trials,
@@ -2573,7 +2573,7 @@ def disposal_reasons(dead_bulls, dead_cows):
     """
 
     labels = ['animal', 'sire', 'dam', 'born', 'sex', 'herd', 'alive', 'term code', 'term date',
-              'TBV', 'inbreeding', 'edited', 'n_edits', 'n_ets', 'genotype']
+              'TBV', 'inbreeding', 'edited', 'n_edits', 'n_ets', 'bred', 'genotype']
     df = pd.DataFrame.from_records(dead_bulls+dead_cows, columns=labels)
     print df.groupby(['sex', 'born', 'term code']).count()['animal']
 
