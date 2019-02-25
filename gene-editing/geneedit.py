@@ -475,6 +475,7 @@ def random_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, r
                     if debug:
                         print 'bull %s (ID %s) is not alive or does not have available matings' % (bull_to_use, bull_id)
                 cow[14] = 0
+            # The cow has been bred
             cow[14] = 1
 
     for nc in new_cows:
@@ -631,6 +632,7 @@ def truncation_mating(cows, bulls, dead_cows, dead_bulls, generation, generation
                 cow[14] = 0
             # The cow has been bred
             cow[14] = 1
+
     if debug:
         print '\t[truncation_mating]: %s animals in original cow list' % len(cows)
         print '\t[truncation_mating]: %s animals in new cow list' % len(new_cows)
@@ -1363,6 +1365,11 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
     if tenth <= 0:
         tenth = 1
     herd_counter = 0
+
+    # Set all cows open
+    for c in cows:
+        c[14] = 0
+
     # For each herd we're going to loop over all possible matings of the cows in the herd to the randomly chosen
     # bull portfolio and compute a parent average. Then we'll select the actual matings. This will be on a within-
     # herd basis, so a new B and M will be computed for each herd.
@@ -1474,10 +1481,7 @@ def pryce_mating(cows, bulls, dead_cows, dead_bulls, generation, generations, fi
         # A matrix of selected mates (mate allocation matrix; M) was constructed, where Mij=1 if the corresponding
         # element, Bij was the highest value in the column Bj; that is, the maximum value of all feasible matings for
         # dam j, all other elements were set to 0, and were rejected sire and dam combinations.
-        #
-        # Set all cows open
-        for c in cows:
-            c[14] = 0
+
         #
         # Sort bulls on ID in ascending order
         bull_portfolio[h].sort(key=lambda x: x[0])
@@ -2663,6 +2667,51 @@ def write_history_files(cows, bulls, dead_cows, dead_bulls, generation, filetag=
     ofh.close()
 
 
+# If the file could have the generation, bred cow count and open cow count that would be great. One file for
+# multiplier cows and one for the nucleus would be perfect.
+def write_repro_history_files(cows, generation, filetag=''):
+
+    """Produce a table showing the reasons that animals died.
+
+    :param cows: A list of live cow records.
+    :type cows: list
+    :param generation: The current generation in the simulation.
+    :type generation: int
+    :param filetag: Added to file names to describe the analysis a file is associated with.
+    :type filetag: string
+    :return: Nothing is returned from this function.
+    :rtype: None
+    """
+
+    labels = ['animal', 'sire', 'dam', 'born', 'sex', 'herd', 'alive', 'term code', 'term date',
+              'TBV', 'inbreeding', 'edited', 'n_edits', 'n_ets', 'bred', 'genotype']
+    df = pd.DataFrame.from_records(cows, columns=labels)
+    df['generation'] = generation
+    df['cows_bred'] = np.where(df['bred'] == 1, 1, 0)
+    df['cows_open'] = np.where(df['bred'] == 0, 1, 0)
+    try:
+        outfilename = 'cow_breeding_history%s.txt' % ( filetag )
+        # If we're in the first generation, create a new history file that will be appended to by later generations.
+        if generation == 1:
+            outfilemode = 'w'
+            df.groupby(['generation']).sum().reset_index().to_csv(outfilename,
+                                                                  sep='\t',
+                                                                  columns=['generation', 'cows_bred', 'cows_open'],
+                                                                  index=False,
+                                                                  mode=outfilemode)
+        else:
+            outfilemode = 'a'
+            df.groupby(['generation']).sum().reset_index().to_csv(outfilename,
+                                                                  sep='\t',
+                                                                  columns=['generation', 'cows_bred', 'cows_open'],
+                                                                  index=False,
+                                                                  header=False,
+                                                                  mode=outfilemode)
+
+        return True
+    except:
+        return False
+
 # Main loop for individual simulation scenarios.
 
 
@@ -3444,8 +3493,8 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                 bred_cows += 1
             else:
                 open_cows += 1
-        print '\n[run_scenario]: %s bred cows in generation %s' % ( generation, bred_cows )
-        print '\n[run_scenario]: %s open cows in generation %s' % ( generation, open_cows )
+        print '\n[run_scenario]: %s bred cows in generation %s' % ( bred_cows, generation )
+        print '\n[run_scenario]: %s open cows in generation %s' % ( open_cows, generation )
 
         # Cull cows
         print '\n[run_scenario]: Computing summary statistics for cows before culling at %s' % \
@@ -3548,6 +3597,13 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
                 if use_nucleus:
                     print '\n[run_scenario]: Disposal reasons for nucleus herd animals.'
                     disposal_reasons(nucleus_dead_bulls, nucleus_dead_cows)
+
+        # Write cow mating history files
+        if use_nucleus:
+            write_repro_history_files(nucleus_cows, generation, filetag='_nucleus')
+            write_repro_history_files(cows, generation, filetag='_multiplier')
+        else:
+            write_repro_history_files(cows, generation, filetag='')
 
     # Save the simulation parameters so that we know what we did.
     outfile = 'simulation_parameters%s.txt' % filetag
