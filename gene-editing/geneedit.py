@@ -4092,7 +4092,6 @@ def run_scenario(scenario='random', cow_mean=0., genetic_sd=200., bull_diff=1.5,
     outfile = 'simulation_parameters%s.txt' % filetag
     ofh = file(outfile, 'w')
     ofh.write('scenario              :\t%s\n' % scenario)
-    ofh.write('species               :\t%s\n' % species)
     ofh.write('filetag               :\t%s\n' % filetag)
     ofh.write('cow_mean              :\t%s\n' % cow_mean)
     ofh.write('genetic_sd            :\t%s\n' % genetic_sd)
