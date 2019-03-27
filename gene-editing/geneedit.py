@@ -1828,19 +1828,19 @@ def fetch_rec_and_age(animal_list, generation, get_recessive, recessives, bull_m
         # Only look for bulls that are at least __ yrs of age
         if animal['sex'] == 'M' and age >= bull_mating_age:
             # Add AA animals if 0 copies of minor allele requested
-            if animal[-1][rec_loc] == 1 and copies == 0:
+            if animal['genotypes'][rec_loc] == 1 and copies == 0:
                 selected_animals.append(animal)
             # Add Aa animals if 1 copy of minor allele requested
-            elif animal[-1][rec_loc] == 0 and copies == 1:
+            elif animal['genotypes'][rec_loc] == 0 and copies == 1:
                 selected_animals.append(animal)
             # Add aa animals if 2 copies of minor allele requested
-            elif animal[-1][rec_loc] == -1 and copies == 2:
+            elif animal['genotypes'][rec_loc] == -1 and copies == 2:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == 1) and copies == 4:
+            elif (animal['genotypes'][rec_loc] == 0 or animal['genotypes'][rec_loc] == 1) and copies == 4:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == -1) and copies == 5:
+            elif (animal['genotypes'][rec_loc] == 0 or animal['genotypes'][rec_loc] == -1) and copies == 5:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == -1 or animal[-1][rec_loc] == 1) and copies == 6:
+            elif (animal['genotypes'][rec_loc] == -1 or animal['genotypes'][rec_loc] == 1) and copies == 6:
                 selected_animals.append(animal)
             else:
                 pass
@@ -1848,19 +1848,19 @@ def fetch_rec_and_age(animal_list, generation, get_recessive, recessives, bull_m
         # 03/06/2019    JBC    Sex code test was for 'M', should have been 'F'?
         elif animal['sex'] == 'F' and age >= cow_mating_age:
             # Add AA animals if 0 copies of minor allele requested
-            if animal[-1][rec_loc] == 1 and copies == 0:
+            if animal['genotypes'][rec_loc] == 1 and copies == 0:
                 selected_animals.append(animal)
             # Add Aa animals if 1 copy of minor allele requested
-            elif animal[-1][rec_loc] == 0 and copies == 1:
+            elif animal['genotypes'][rec_loc] == 0 and copies == 1:
                 selected_animals.append(animal)
             # Add aa animals if 2 copies of minor allele requested
-            elif animal[-1][rec_loc] == -1 and copies == 2:
+            elif animal['genotypes'][rec_loc] == -1 and copies == 2:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == 1) and copies == 4:
+            elif (animal['genotypes'][rec_loc] == 0 or animal['genotypes'][rec_loc] == 1) and copies == 4:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == 0 or animal[-1][rec_loc] == -1) and copies == 5:
+            elif (animal['genotypes'][rec_loc] == 0 or animal['genotypes'][rec_loc] == -1) and copies == 5:
                 selected_animals.append(animal)
-            elif (animal[-1][rec_loc] == -1 or animal[-1][rec_loc] == 1) and copies == 6:
+            elif (animal['genotypes'][rec_loc] == -1 or animal['genotypes'][rec_loc] == 1) and copies == 6:
                 selected_animals.append(animal)
             else:
                 pass
