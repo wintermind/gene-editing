@@ -2468,7 +2468,8 @@ def get_unique_herd_list(animals, debug=False):
 
 
 # Function for moving bulls from nucleus herds to multiplier herds.
-
+#
+# 03/28/2019    JBC    Fixed reference to old index for herd ID missed when updating animals to dictionaries.
 
 def move_nucleus_bulls_to_multiplier(bulls, nucleus_bulls, generation, nucleus_bulls_to_move, bull_criterion,
                                      move_rule='random', move_age=1, debug=True):
@@ -2579,14 +2580,14 @@ def move_nucleus_bulls_to_multiplier(bulls, nucleus_bulls, generation, nucleus_b
 #MM        if debug:
 #MM            print '\t\t[move_nucleus_bulls_to_multiplier]: Evenly moving bull %s from nucleus herd %s to multiplier ' \
 #MM                'herd %s' % (move_list[i][0], move_list[i][5], nh)
-        move_list[i][5] = nh
+        move_list[i]['herd'] = nh
     # 2nd move the remainder bulls 1x1 randomly to herds
-    for i in xrange(even_move,to_move):
+    for i in xrange(even_move, to_move):
         nh = herd_list_queue2.pop()
 #MM        if debug:
 #MM            print '\t\t[move_nucleus_bulls_to_multiplier]: Moving remainder bull %s from nucleus herd %s to multiplier ' \
 #MM                'herd %s' % (move_list[i][0], move_list[i][5], nh)
-        move_list[i][5] = nh
+        move_list[i]['herd'] = nh
 
     # Once the herd IDs have been changed we need to actually change the lists of nucleus and multiplier bulls
     # so that what we return reflects the animal movements.s3ppa1a
@@ -3331,6 +3332,7 @@ def write_repro_history_files(cows, generation, filetag=''):
 # multiplier cows and one for the nucleus would be perfect.
 #
 # 03/15/2019    JBC     Created.
+# 03/28/2019    JBC     Fixed output to be correct format.
 
 
 def write_death_reasons_history_file(dead_cows, dead_bulls, filetag=''):
@@ -3348,14 +3350,16 @@ def write_death_reasons_history_file(dead_cows, dead_bulls, filetag=''):
     """
 
     df = pd.DataFrame.from_dict(dead_cows + dead_bulls, orient='columns')
-    df.groupby(['sex', 'died', 'reason']).count()['animal'].reset_index()
+    #df.groupby(['sex', 'died', 'reason']).count()['animal'].reset_index()
+    new_df = df.groupby(['sex', 'died', 'reason']).size().reset_index(name='counts')
+    print new_df
 
     try:
         outfilename = 'death_reasons_history%s.txt' % ( filetag )
         outfilemode = 'w'
-        df.to_csv(outfilename,
+        new_df.to_csv(outfilename,
             sep='\t',
-            columns=['sex', 'died', 'reason', 'animals'],
+            columns=['sex', 'died', 'reason', 'counts'],
             index=False,
             mode=outfilemode)
         return True
@@ -4734,9 +4738,9 @@ if __name__ == '__main__':
     show_recessives =   False          # Show recessive frequencies after each round.
     check_all_parms =   True           # Perform a formal check on all parameters.
     show_disposals =    True           # Print the frequency of disposals by reason.
-    filetag =           '_test32'     # Label with which to append filenames for tracking different scenarios.
-    nucleus_filetag =   '_nuc_test32' # Label with which to append filenames for tracking different scenarios
-    generations =       10             # How long to run the simulation
+    filetag =           '_test32'      # Label with which to append filenames for tracking different scenarios.
+    nucleus_filetag =   '_nuc_test32'  # Label with which to append filenames for tracking different scenarios
+    generations =       5              # How long to run the simulation
 
     # -- Base Population (Multiplier) Parameters
     cow_mean =      0.       # Average base population cow TBV.
