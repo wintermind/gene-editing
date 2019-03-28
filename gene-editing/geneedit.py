@@ -3352,7 +3352,7 @@ def write_death_reasons_history_file(dead_cows, dead_bulls, filetag=''):
     df = pd.DataFrame.from_dict(dead_cows + dead_bulls, orient='columns')
     #df.groupby(['sex', 'died', 'reason']).count()['animal'].reset_index()
     new_df = df.groupby(['sex', 'died', 'reason']).size().reset_index(name='counts')
-    print new_df
+    #print new_df
 
     try:
         outfilename = 'death_reasons_history%s.txt' % ( filetag )
